@@ -1,0 +1,22 @@
+{
+  "name": "mini-connect",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cdk:synth": "cdk synth",
+    "cdk:deploy": "cdk deploy",
+    "stage:flows": "tsx ./scripts/stage-contact-flows.ts dev"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.203.0",
+    "connect-flow-builder": "file:./connect-flow-builder",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,89 @@
+import { validateFlowDefinition } from "./validators.js";
+export class FlowBuilder {
+    name;
+    actions = new Map();
+    startActionId;
+    metadata;
+    constructor(name) {
+        this.name = name;
+    }
+    startWith(actionOrId) {
+        this.startActionId = typeof actionOrId === "string" ? actionOrId : actionOrId.id;
+        if (typeof actionOrId !== "string") {
+            this.add(actionOrId);
+        }
+        return this;
+    }
+    add(action) {
+        this.actions.set(action.id, action);
+        return this;
+    }
+    addMany(actions) {
+        for (const action of actions) {
+            this.add(action);
+        }
+        return this;
+    }
+    use(segment) {
+        if (!this.startActionId) {
+            this.startActionId = segment.startActionId;
+        }
+        return this.addMany(segment.actions);
+    }
+    withMetadata(metadata) {
+        this.metadata = metadata;
+        return this;
+    }
+    build() {
+        const definition = {
+            version: "2019-10-30",
+            startAction: this.startActionId ?? "",
+            actions: [...this.actions.values()],
+            metadata: this.metadata,
+        };
+        validateFlowDefinition(definition);
+        return new BuiltFlow(this.name, definition);
+    }
+}
+export class BuiltFlow {
+    name;
+    definition;
+    constructor(name, definition) {
+        this.name = name;
+        this.definition = definition;
+    }
+    toConnectDefinition() {
+        return {
+            Version: this.definition.version,
+            StartAction: this.definition.startAction,
+            Metadata: this.definition.metadata,
+            Actions: this.definition.actions.map((action) => this.toConnectAction(action)),
+        };
+    }
+    toJsonString(pretty = true) {
+        return JSON.stringify(this.toConnectDefinition(), null, pretty ? 2 : undefined);
+    }
+    toConnectAction(action) {
+        return {
+            Identifier: action.id,
+            Type: action.type,
+            Parameters: action.parameters,
+            Transitions: action.transitions
+                ? {
+                    NextAction: action.transitions.nextAction,
+                    Conditions: action.transitions.conditions?.map((condition) => ({
+                        NextAction: condition.nextAction,
+                        Condition: {
+                            Operator: condition.condition.operator,
+                            Operands: condition.condition.operands,
+                        },
+                    })),
+                    Errors: action.transitions.errors?.map((error) => ({
+                        NextAction: error.nextAction,
+                        ErrorType: error.errorType,
+                    })),
+                }
+                : undefined,
+        };
+    }
+}
