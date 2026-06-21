@@ -23,7 +23,7 @@ export class LambdaStack extends cdk.Stack {
         });
         this.hrsOfOpsHandler.grantInvoke(new iam.ServicePrincipal("connect.amazonaws.com", {
             conditions: {
-                ArnLike: { "aws:SourceAccount": cdk.Stack.of(this).account },
+                StringEquals: { "aws:SourceAccount": cdk.Stack.of(this).account },
             },
         }));
         new cdk.CfnOutput(this, `HrsOfOpsHandlerArn-${props.envName}`, {
@@ -43,7 +43,7 @@ export class LambdaStack extends cdk.Stack {
         });
         this.memberLookupHandler.grantInvoke(new iam.ServicePrincipal("connect.amazonaws.com", {
             conditions: {
-                ArnLike: { "aws:SourceAccount": cdk.Stack.of(this).account },
+                StringEquals: { "aws:SourceAccount": cdk.Stack.of(this).account },
             },
         }));
         props.dynamoDbStack.memberTable.grantReadData(this.memberLookupHandler);

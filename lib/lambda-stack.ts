@@ -49,7 +49,7 @@ export class LambdaStack extends cdk.Stack {
     this.hrsOfOpsHandler.grantInvoke(
       new iam.ServicePrincipal("connect.amazonaws.com", {
         conditions: {
-          ArnLike: { "aws:SourceAccount": cdk.Stack.of(this).account },
+          StringEquals: { "aws:SourceAccount": cdk.Stack.of(this).account },
         },
       }),
     );
@@ -83,7 +83,7 @@ export class LambdaStack extends cdk.Stack {
     this.memberLookupHandler.grantInvoke(
       new iam.ServicePrincipal("connect.amazonaws.com", {
         conditions: {
-          ArnLike: { "aws:SourceAccount": cdk.Stack.of(this).account },
+          StringEquals: { "aws:SourceAccount": cdk.Stack.of(this).account },
         },
       }),
     );
