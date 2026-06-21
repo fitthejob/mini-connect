@@ -1,9 +1,5 @@
-import {
-  CfnOutput,
-  Stack,
-  type StackProps,
-} from "aws-cdk-lib";
-import { CfnContactFlow } from "aws-cdk-lib/aws-connect";
+import * as cdk from "aws-cdk-lib";
+import * as connect from "aws-cdk-lib/aws-connect";
 import { Construct } from "constructs";
 
 import {
@@ -14,10 +10,13 @@ import {
 
 import { flowCatalog } from "../src/flows/catalog.js";
 
-export interface ContactFlowsStackProps extends StackProps {
+interface ContactFlowsStackProps extends cdk.StackProps {
   envName: string;
   instanceArn: string;
   supportQueueArn: string;
+  hrsOfOpsArn: string;
+  memberLookupArn: string;
+  lexBotAliasArn: string;
 }
 
 function requireArtifact(
@@ -45,7 +44,7 @@ function renderTags(tags: Readonly<Record<string, string>>) {
   return Object.entries(tags).map(([key, value]) => ({ key, value }));
 }
 
-export class ContactFlowsStack extends Stack {
+export class ContactFlowsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ContactFlowsStackProps) {
     super(scope, id, props);
 
@@ -70,7 +69,7 @@ export class ContactFlowsStack extends Stack {
     );
     assertNoUnresolvedPlaceholders(supportArtifact);
 
-    const supportQueueExperienceFlow = new CfnContactFlow(
+    const supportQueueExperienceFlow = new connect.CfnContactFlow(
       this,
       "SupportQueueExperienceFlow",
       {
@@ -91,6 +90,13 @@ export class ContactFlowsStack extends Stack {
       flowArns: {
         supportQueueExperience: supportQueueExperienceFlow.attrContactFlowArn,
       },
+      lambdas: {
+        hrsOfOps: props.hrsOfOpsArn,
+        memberLookup: props.memberLookupArn,
+      },
+      lexBotAliases: {
+        mainInbound: props.lexBotAliasArn,
+      },
     };
 
     const deploymentRender = renderFlowCatalog({
@@ -105,31 +111,35 @@ export class ContactFlowsStack extends Stack {
     );
     assertNoUnresolvedPlaceholders(mainInboundArtifact);
 
-    const mainInboundFlow = new CfnContactFlow(this, "MainInboundFlow", {
-      instanceArn: props.instanceArn,
-      name: mainInboundArtifact.name,
-      type: mainInboundArtifact.type,
-      description: mainInboundArtifact.description,
-      state: mainInboundArtifact.state,
-      content: mainInboundArtifact.content,
-      tags: renderTags(mainInboundArtifact.tags),
-    });
+    const mainInboundFlow = new connect.CfnContactFlow(
+      this,
+      "MainInboundFlow",
+      {
+        instanceArn: props.instanceArn,
+        name: mainInboundArtifact.name,
+        type: mainInboundArtifact.type,
+        description: mainInboundArtifact.description,
+        state: mainInboundArtifact.state,
+        content: mainInboundArtifact.content,
+        tags: renderTags(mainInboundArtifact.tags),
+      },
+    );
 
     mainInboundFlow.node.addDependency(supportQueueExperienceFlow);
 
-    new CfnOutput(this, "ConnectInstanceArnInput", {
+    new cdk.CfnOutput(this, `ConnectInstanceArnInput-${props.envName}`, {
       value: props.instanceArn,
     });
 
-    new CfnOutput(this, "SupportQueueArnInput", {
+    new cdk.CfnOutput(this, `SupportQueueArnInput-${props.envName}`, {
       value: props.supportQueueArn,
     });
 
-    new CfnOutput(this, "SupportQueueExperienceFlowArn", {
+    new cdk.CfnOutput(this, `SupportQueueExperienceFlowArn-${props.envName}`, {
       value: supportQueueExperienceFlow.attrContactFlowArn,
     });
 
-    new CfnOutput(this, "MainInboundFlowArn", {
+    new cdk.CfnOutput(this, `MainInboundFlowArn-${props.envName}`, {
       value: mainInboundFlow.attrContactFlowArn,
     });
   }

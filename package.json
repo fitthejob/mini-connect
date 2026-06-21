@@ -5,9 +5,25 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "bootstrap:ssm": "tsx ./scripts/bootstrap-ssm.ts",
     "cdk:synth": "cdk synth",
     "cdk:deploy": "cdk deploy",
-    "stage:flows": "tsx ./scripts/stage-contact-flows.ts dev"
+    "stage:flows": "tsx ./scripts/stage-contact-flows.ts",
+    "stage:lambda": "tsx ./scripts/stage-lambdas.ts",
+    "stage:lambdas": "tsx ./scripts/stage-lambdas.ts",
+    "deploy:lambdas": "cdk deploy MiniConnect-Lambda",
+    "deploy:instance": "cdk deploy MiniConnect-Instance",
+    "deploy:queues": "cdk deploy MiniConnect-Queues",
+    "deploy:flows": "cdk deploy MiniConnect-ContactFlows",
+    "deploy:kms": "cdk deploy MiniConnect-Kms",
+    "deploy:s3": "cdk deploy MiniConnect-S3",
+    "deploy:lex": "cdk deploy MiniConnect-Lex",
+    "deploy:dynamodb": "cdk deploy MiniConnect-DynamoDB",
+    "deploy:monitoring-ops": "cdk deploy MiniConnect-MonitoringOps",
+    "deploy:monitoring-dev": "cdk deploy MiniConnect-MonitoringDev",
+    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --context env=dev",
+    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --context env=prod",
+    "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.203.0",
@@ -15,7 +31,13 @@
     "constructs": "^10.4.2"
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudformation": "^3.1073.0",
+    "@aws-sdk/client-iam": "^3.1073.0",
+    "@aws-sdk/client-s3": "^3.1072.0",
+    "@aws-sdk/client-ssm": "^3.1073.0",
+    "@aws-sdk/client-sts": "^3.1073.0",
     "@types/node": "^24.0.0",
+    "cdk-nag": "^3.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.8.3"
   }

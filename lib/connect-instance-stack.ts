@@ -1,37 +1,43 @@
-import { CfnOutput, Stack, type StackProps } from "aws-cdk-lib";
-import { CfnInstance } from "aws-cdk-lib/aws-connect";
+import * as cdk from "aws-cdk-lib";
+import * as connect from "aws-cdk-lib/aws-connect";
 import { Construct } from "constructs";
 
-export interface ConnectInstanceStackProps extends StackProps {
+interface ConnectInstanceStackProps extends cdk.StackProps {
   envName: string;
 }
 
-export class ConnectInstanceStack extends Stack {
+export class ConnectInstanceStack extends cdk.Stack {
   readonly instanceArn: string;
+  readonly instanceId: string;
 
   constructor(scope: Construct, id: string, props: ConnectInstanceStackProps) {
     super(scope, id, props);
 
-    const instance = new CfnInstance(this, "ConnectInstance", {
-      identityManagementType: "CONNECT_MANAGED",
-      instanceAlias: `mini-connect-${props.envName}`,
-      attributes: {
-        inboundCalls: true,
-        outboundCalls: true,
+    const instance = new connect.CfnInstance(
+      this,
+      `ConnectInstance-${props.envName}`,
+      {
+        identityManagementType: "CONNECT_MANAGED",
+        instanceAlias: `mini-connect-${props.envName}`,
+        attributes: {
+          inboundCalls: true,
+          outboundCalls: true,
+        },
       },
-    });
+    );
 
     this.instanceArn = instance.attrArn;
+    this.instanceId = instance.attrId;
 
-    new CfnOutput(this, "ConnectInstanceArn", {
+    new cdk.CfnOutput(this, `ConnectInstanceArn-${props.envName}`, {
       value: instance.attrArn,
     });
 
-    new CfnOutput(this, "ConnectInstanceId", {
+    new cdk.CfnOutput(this, `ConnectInstanceId-${props.envName}`, {
       value: instance.attrId,
     });
 
-    new CfnOutput(this, "ConnectInstanceStatus", {
+    new cdk.CfnOutput(this, `ConnectInstanceStatus-${props.envName}`, {
       value: instance.attrInstanceStatus,
     });
   }

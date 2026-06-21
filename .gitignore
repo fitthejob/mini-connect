@@ -2,3 +2,5 @@ node_modules/
 cdk.out/
 .staging/
 *.tsbuildinfo
+CLAUDE.md
+docs/

@@ -1,0 +1,138 @@
+name: Deploy MiniConnect
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - prod
+
+permissions:
+  id-token: write  # required for OIDC authentication
+  contents: read
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Synthesize CDK (generates CloudFormation templates)
+        run: npm run cdk:synth
+        continue-on-error: true  # SSM parameters may not exist yet in CI
+
+      - name: Run Checkov on CloudFormation templates
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: cdk.out
+          framework: cloudformation
+          soft_fail: false
+          output_format: cli
+          skip_check: CKV_AWS_117  # Lambda VPC not required for this use case
+
+  deploy-dev:
+    name: Deploy to Dev
+    runs-on: ubuntu-latest
+    environment: dev
+    needs: security-scan
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Bootstrap SSM parameters
+        run: npm run bootstrap:ssm -- dev
+        continue-on-error: true  # parameters may already exist
+
+      - name: Stage Lambda artifacts
+        run: npm run stage:lambdas -- dev all
+
+      - name: Deploy all stacks
+        run: npm run deploy:all:dev -- --require-approval never
+
+      - name: Deploy Lambda stack
+        run: npm run deploy:lambdas -- --require-approval never --context env=dev
+
+  deploy-prod:
+    name: Deploy to Prod
+    runs-on: ubuntu-latest
+    environment: prod
+    needs: deploy-dev
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Bootstrap SSM parameters
+        run: npm run bootstrap:ssm -- prod
+        continue-on-error: true  # parameters may already exist
+
+      - name: Stage Lambda artifacts
+        run: npm run stage:lambdas -- prod all
+
+      - name: Deploy all stacks
+        run: npm run deploy:all:prod -- --require-approval never
+
+      - name: Deploy Lambda stack
+        run: npm run deploy:lambdas -- --require-approval never --context env=prod

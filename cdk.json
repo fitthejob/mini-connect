@@ -1,3 +1,10 @@
 {
-  "app": "node --import tsx ./bin/mini-connect.ts"
+  "app": "node --import tsx ./bin/mini-connect.ts",
+  "context": {
+    "env": "dev",
+    "@aws-cdk/core:defaultCrossStackReferences": "strong",
+    "@aws-cdk/iam:permissionsBoundary": {
+      "name": "MiniConnectPermissionsBoundary"
+    }
+  }
 }

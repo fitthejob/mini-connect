@@ -1,0 +1,101 @@
+import * as cdk from "aws-cdk-lib";
+import * as lex from "aws-cdk-lib/aws-lex";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as connect from "aws-cdk-lib/aws-connect";
+import { Construct } from "constructs";
+import type { BotCatalog } from "../src/bots/types.js";
+import { renderBotLocales } from "../src/bots/render.js";
+
+interface LexStackProps extends cdk.StackProps {
+  instanceArn: string;
+  envName: string;
+  catalog: BotCatalog;
+}
+
+export class LexStack extends cdk.Stack {
+  readonly botAliasArn: string;
+  constructor(scope: Construct, id: string, props: LexStackProps) {
+    super(scope, id, props);
+    const lexRole = new iam.Role(this, `LexRole-${props.envName}`, {
+      assumedBy: new iam.ServicePrincipal("lexv2.amazonaws.com"),
+    });
+    lexRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ],
+        resources: ["arn:aws:logs:*:*:*"],
+      }),
+    );
+    const bot = new lex.CfnBot(this, `${props.catalog.name}-${props.envName}`, {
+      name: `${props.catalog.name}-${props.envName}`,
+      roleArn: lexRole.roleArn,
+      dataPrivacy: { childDirected: false },
+      idleSessionTtlInSeconds: 300,
+      autoBuildBotLocales: true,
+      botLocales: renderBotLocales(
+        props.catalog,
+      ) as lex.CfnBot.BotLocaleProperty[],
+    });
+
+    const botVersion = new lex.CfnBotVersion(
+      this,
+      `${props.catalog.name}Version-${props.envName}`,
+      {
+        botId: bot.ref,
+        botVersionLocaleSpecification: props.catalog.locales.map(
+          (localeId) => ({
+            localeId,
+            botVersionLocaleDetails: { sourceBotVersion: "DRAFT" },
+          }),
+        ),
+      },
+    );
+
+    const botAlias = new lex.CfnBotAlias(
+      this,
+      `${props.catalog.name}Alias-${props.envName}`,
+      {
+        botId: bot.ref,
+        botAliasName: `live-${props.envName}`,
+        botVersion: botVersion.attrBotVersion,
+      },
+    );
+    this.botAliasArn = botAlias.attrArn;
+
+    new lex.CfnResourcePolicy(this, `BotConnectAssociation-${props.envName}`, {
+      resourceArn: botAlias.attrArn,
+      policy: {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Principal: {
+              Service: "connect.amazonaws.com",
+            },
+            Action: "lex:RecognizeText",
+            Resource: botAlias.attrArn,
+            Condition: {
+              StringEquals: { "aws:SourceArn": props.instanceArn },
+            },
+          },
+        ],
+      },
+    });
+    new connect.CfnIntegrationAssociation(
+      this,
+      `LexBotIntegration-${props.envName}`,
+      {
+        instanceId: cdk.Fn.select(1, cdk.Fn.split("/", props.instanceArn)), // extract instance ID from ARN
+        integrationType: "LEX_BOT",
+        integrationArn: botAlias.attrArn,
+      },
+    );
+    new cdk.CfnOutput(this, `BotAliasArn-${props.envName}`, {
+      value: this.botAliasArn,
+      description: "Lex bot alias ARN for Connect flow integration",
+    });
+  }
+}
