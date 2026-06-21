@@ -1,0 +1,10 @@
+skip-check:
+  - CKV_AWS_117  # Lambda VPC: Connect-invoked Lambdas do not require VPC placement.
+                 # Amazon Connect is a managed service with its own network boundary.
+                 # Adding VPC would require NAT Gateway with no security benefit for this pattern.
+
+  - CKV_AWS_18   # S3 access logging on LambdaArtifactsAccessLogs bucket: this bucket IS the
+                 # access log destination for the artifact bucket. Logging a log bucket to itself
+                 # creates a circular dependency. AWS documentation explicitly exempts access log
+                 # buckets from this requirement. A centralized log aggregation account is the
+                 # correct long-term solution (see docs/TODO.md cross-cutting items).

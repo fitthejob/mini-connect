@@ -60,7 +60,7 @@ jobs:
           framework: cloudformation
           soft_fail: false
           output_format: cli
-          skip_check: CKV_AWS_117  # Lambda VPC not required for this use case
+          config_file: checkov.yaml
 
   deploy-dev:
     name: Deploy to Dev

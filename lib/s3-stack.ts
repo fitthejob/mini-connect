@@ -20,6 +20,7 @@ export class S3Stack extends cdk.Stack {
         enforceSSL: true,
         blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
         encryption: s3.BucketEncryption.S3_MANAGED,
+        versioned: true,
       },
     );
 
