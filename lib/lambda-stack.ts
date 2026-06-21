@@ -43,7 +43,6 @@ export class LambdaStack extends cdk.Stack {
           ),
         ),
         deadLetterQueue: dlq,
-        reservedConcurrentExecutions: 10,
       },
     );
     this.hrsOfOpsHandler.grantInvoke(
@@ -77,7 +76,6 @@ export class LambdaStack extends cdk.Stack {
         },
         environmentEncryption: props.kmsStack.memberDataKey,
         deadLetterQueue: dlq,
-        reservedConcurrentExecutions: 10,
       },
     );
     this.memberLookupHandler.grantInvoke(

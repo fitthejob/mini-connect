@@ -19,7 +19,6 @@ export class LambdaStack extends cdk.Stack {
             handler: "hrs_of_ops.handler",
             code: lambda.Code.fromBucket(props.s3Stack.lambdaArtifactBucket, "hrs_of_ops.zip", ssm.StringParameter.valueFromLookup(this, `/mini-connect/${props.envName}/lambdas/hrs_of_ops/object_version`)),
             deadLetterQueue: dlq,
-            reservedConcurrentExecutions: 10,
         });
         this.hrsOfOpsHandler.grantInvoke(new iam.ServicePrincipal("connect.amazonaws.com", {
             conditions: {
@@ -39,7 +38,6 @@ export class LambdaStack extends cdk.Stack {
             },
             environmentEncryption: props.kmsStack.memberDataKey,
             deadLetterQueue: dlq,
-            reservedConcurrentExecutions: 10,
         });
         this.memberLookupHandler.grantInvoke(new iam.ServicePrincipal("connect.amazonaws.com", {
             conditions: {

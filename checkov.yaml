@@ -8,3 +8,9 @@ skip-check:
                  # creates a circular dependency. AWS documentation explicitly exempts access log
                  # buckets from this requirement. A centralized log aggregation account is the
                  # correct long-term solution (see docs/TODO.md cross-cutting items).
+
+  - CKV_AWS_115  # Lambda reserved concurrency: this is a reference implementation with largely
+                 # idle traffic. Reserved concurrency is a production scaling and cost control
+                 # concern, not a security requirement. Setting it on a demo system causes
+                 # account-level concurrency conflicts. Should be configured per environment
+                 # when promoting to production.
