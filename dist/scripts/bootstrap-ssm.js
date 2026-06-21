@@ -6,13 +6,22 @@ const parameters = [
     `/mini-connect/${environment}/lambdas/member_lookup/object_version`,
 ];
 async function createPlaceholder(parameterPath) {
-    await ssmClient.send(new PutParameterCommand({
-        Name: parameterPath,
-        Value: "PLACEHOLDER",
-        Type: "String",
-        Overwrite: false, // do not overwrite if a real version ID already exists
-    }));
-    console.log(`[${environment}] Created placeholder: ${parameterPath}`);
+    try {
+        await ssmClient.send(new PutParameterCommand({
+            Name: parameterPath,
+            Value: "PLACEHOLDER",
+            Type: "String",
+            Overwrite: false, // do not overwrite if a real version ID already exists
+        }));
+        console.log(`[${environment}] Created placeholder: ${parameterPath}`);
+    }
+    catch (err) {
+        if (err instanceof Error && err.name === "ParameterAlreadyExists") {
+            console.log(`[${environment}] Parameter already exists, skipping: ${parameterPath}`);
+            return;
+        }
+        throw err;
+    }
 }
 async function main() {
     for (const param of parameters) {

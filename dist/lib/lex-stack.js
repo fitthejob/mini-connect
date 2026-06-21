@@ -21,11 +21,12 @@ export class LexStack extends cdk.Stack {
         const bot = new lex.CfnBot(this, `${props.catalog.name}-${props.envName}`, {
             name: `${props.catalog.name}-${props.envName}`,
             roleArn: lexRole.roleArn,
-            dataPrivacy: { childDirected: false },
+            dataPrivacy: {},
             idleSessionTtlInSeconds: 300,
             autoBuildBotLocales: true,
             botLocales: renderBotLocales(props.catalog),
         });
+        bot.addPropertyOverride("DataPrivacy", { ChildDirected: false }); // CDK emits camelCase; CFN requires PascalCase
         const botVersion = new lex.CfnBotVersion(this, `${props.catalog.name}Version-${props.envName}`, {
             botId: bot.ref,
             botVersionLocaleSpecification: props.catalog.locales.map((localeId) => ({
@@ -52,14 +53,17 @@ export class LexStack extends cdk.Stack {
                         Action: "lex:RecognizeText",
                         Resource: botAlias.attrArn,
                         Condition: {
-                            StringEquals: { "aws:SourceArn": props.instanceArn },
+                            StringEquals: {
+                                "aws:SourceArn": props.instanceArn,
+                                "aws:SourceAccount": cdk.Stack.of(this).account,
+                            },
                         },
                     },
                 ],
             },
         });
         new connect.CfnIntegrationAssociation(this, `LexBotIntegration-${props.envName}`, {
-            instanceId: cdk.Fn.select(1, cdk.Fn.split("/", props.instanceArn)), // extract instance ID from ARN
+            instanceId: props.instanceArn, // CfnIntegrationAssociation expects the full instance ARN
             integrationType: "LEX_BOT",
             integrationArn: botAlias.attrArn,
         });

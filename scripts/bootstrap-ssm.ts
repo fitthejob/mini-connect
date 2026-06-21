@@ -10,15 +10,23 @@ const parameters = [
 ];
 
 async function createPlaceholder(parameterPath: string): Promise<void> {
-  await ssmClient.send(
-    new PutParameterCommand({
-      Name: parameterPath,
-      Value: "PLACEHOLDER",
-      Type: "String",
-      Overwrite: false, // do not overwrite if a real version ID already exists
-    }),
-  );
-  console.log(`[${environment}] Created placeholder: ${parameterPath}`);
+  try {
+    await ssmClient.send(
+      new PutParameterCommand({
+        Name: parameterPath,
+        Value: "PLACEHOLDER",
+        Type: "String",
+        Overwrite: false, // do not overwrite if a real version ID already exists
+      }),
+    );
+    console.log(`[${environment}] Created placeholder: ${parameterPath}`);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "ParameterAlreadyExists") {
+      console.log(`[${environment}] Parameter already exists, skipping: ${parameterPath}`);
+      return;
+    }
+    throw err;
+  }
 }
 
 async function main(): Promise<void> {

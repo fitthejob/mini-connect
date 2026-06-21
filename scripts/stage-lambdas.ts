@@ -1,13 +1,11 @@
 import path from "node:path"; // resolves file and directory paths
 import { fileURLToPath } from "node:url"; // converts import.meta.url to a file path (ESM equivalent of __dirname)
-import { createReadStream } from "node:fs"; // streams the zip file to S3 without loading it fully into memory
-import { exec } from "node:child_process"; // runs the zip shell command to package the Python file
-import { promisify } from "node:util"; // wraps exec in a Promise so we can use async/await
+import { createReadStream, mkdirSync, createWriteStream } from "node:fs"; // file system operations
+import { ZipArchive } from "archiver"; // cross-platform zip creation
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"; // S3 client and upload command
 import { SSMClient, PutParameterCommand } from "@aws-sdk/client-ssm"; // SSM client for writing version IDs
 import { CloudFormationClient, DescribeStacksCommand } from "@aws-sdk/client-cloudformation"; // resolves CloudFormation outputs
 
-const execAsync = promisify(exec); // wraps exec to enable awaiting shell commands
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url)); // resolves the scripts/ dir at runtime
 const repositoryRoot = path.resolve(moduleDir, ".."); // resolves the repo root from scripts/
@@ -34,7 +32,7 @@ async function resolveBucketName(): Promise<string> {
   );
   const outputs = response.Stacks?.[0]?.Outputs ?? [];
   const bucket = outputs.find(
-    (o) => o.OutputKey === `LambdaArtifactBucketName-${environment}`,
+    (o) => o.ExportName === `LambdaArtifactBucketName-${environment}`,
   )?.OutputValue;
   if (!bucket) {
     throw new Error(
@@ -49,8 +47,16 @@ async function stageLambda(fileName: string, bucketName: string): Promise<void> 
   const sourcePath = path.join(lambdaDir, fileName); // full path to source file
   const zipPath = path.join(zipDir, `${baseName}.zip`); // full path to zip artifact
 
-  await execAsync(`mkdir -p ${zipDir}`); // ensure staging dir exists
-  await execAsync(`zip -j ${zipPath} ${sourcePath}`); // zip the Python file, -j strips dir paths
+  mkdirSync(zipDir, { recursive: true }); // ensure staging dir exists (cross-platform)
+  await new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(zipPath);
+    const archive = new ZipArchive({ zlib: { level: 9 } });
+    output.on("close", resolve);
+    archive.on("error", reject);
+    archive.pipe(output);
+    archive.file(sourcePath, { name: path.basename(sourcePath) }); // add file without directory path
+    archive.finalize();
+  });
 
   const stream = createReadStream(zipPath); // stream zip to S3 without loading into memory
 

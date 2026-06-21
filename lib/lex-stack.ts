@@ -32,13 +32,14 @@ export class LexStack extends cdk.Stack {
     const bot = new lex.CfnBot(this, `${props.catalog.name}-${props.envName}`, {
       name: `${props.catalog.name}-${props.envName}`,
       roleArn: lexRole.roleArn,
-      dataPrivacy: { childDirected: false },
+      dataPrivacy: {} as lex.CfnBot.DataPrivacyProperty,
       idleSessionTtlInSeconds: 300,
       autoBuildBotLocales: true,
       botLocales: renderBotLocales(
         props.catalog,
       ) as lex.CfnBot.BotLocaleProperty[],
     });
+    bot.addPropertyOverride("DataPrivacy", { ChildDirected: false }); // CDK emits camelCase; CFN requires PascalCase
 
     const botVersion = new lex.CfnBotVersion(
       this,
@@ -65,30 +66,13 @@ export class LexStack extends cdk.Stack {
     );
     this.botAliasArn = botAlias.attrArn;
 
-    new lex.CfnResourcePolicy(this, `BotConnectAssociation-${props.envName}`, {
-      resourceArn: botAlias.attrArn,
-      policy: {
-        Version: "2012-10-17",
-        Statement: [
-          {
-            Effect: "Allow",
-            Principal: {
-              Service: "connect.amazonaws.com",
-            },
-            Action: "lex:RecognizeText",
-            Resource: botAlias.attrArn,
-            Condition: {
-              StringEquals: { "aws:SourceArn": props.instanceArn },
-            },
-          },
-        ],
-      },
-    });
+    // CfnIntegrationAssociation below is sufficient to grant Connect access to the bot
+    // CfnResourcePolicy is not required when using the integration association pattern
     new connect.CfnIntegrationAssociation(
       this,
       `LexBotIntegration-${props.envName}`,
       {
-        instanceId: cdk.Fn.select(1, cdk.Fn.split("/", props.instanceArn)), // extract instance ID from ARN
+        instanceId: props.instanceArn, // CfnIntegrationAssociation expects the full instance ARN
         integrationType: "LEX_BOT",
         integrationArn: botAlias.attrArn,
       },

@@ -18,7 +18,7 @@ export class ConnectInstanceStack extends cdk.Stack {
       `ConnectInstance-${props.envName}`,
       {
         identityManagementType: "CONNECT_MANAGED",
-        instanceAlias: `mini-connect-${props.envName}`,
+        instanceAlias: `mc-${props.envName}`,
         attributes: {
           inboundCalls: true,
           outboundCalls: true,

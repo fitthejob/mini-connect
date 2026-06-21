@@ -14,6 +14,7 @@ export class S3Stack extends cdk.Stack {
         new cdk.CfnOutput(this, `LambdaArtifactBucketName-${props.envName}`, {
             value: this.lambdaArtifactBucket.bucketName,
             description: "LAMBDA_ARTIFACT_BUCKET env var",
+            exportName: `LambdaArtifactBucketName-${props.envName}`,
         });
     }
 }

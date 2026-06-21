@@ -21,9 +21,9 @@
     "deploy:dynamodb": "cdk deploy MiniConnect-DynamoDB",
     "deploy:monitoring-ops": "cdk deploy MiniConnect-MonitoringOps",
     "deploy:monitoring-dev": "cdk deploy MiniConnect-MonitoringDev",
-    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --context env=dev",
-    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --context env=prod",
-    "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev"
+    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=dev",
+    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=prod",
+    "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.203.0",
@@ -36,7 +36,9 @@
     "@aws-sdk/client-s3": "^3.1072.0",
     "@aws-sdk/client-ssm": "^3.1073.0",
     "@aws-sdk/client-sts": "^3.1073.0",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^24.0.0",
+    "archiver": "^8.0.0",
     "cdk-nag": "^3.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.8.3"

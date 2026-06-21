@@ -7,7 +7,7 @@ export class ConnectInstanceStack extends cdk.Stack {
         super(scope, id, props);
         const instance = new connect.CfnInstance(this, `ConnectInstance-${props.envName}`, {
             identityManagementType: "CONNECT_MANAGED",
-            instanceAlias: `mini-connect-${props.envName}`,
+            instanceAlias: `mc-${props.envName}`,
             attributes: {
                 inboundCalls: true,
                 outboundCalls: true,
