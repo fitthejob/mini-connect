@@ -23,6 +23,7 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    environment: dev
 
     steps:
       - name: Checkout
@@ -34,15 +35,23 @@ jobs:
           node-version: "22"
           cache: "npm"
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
 
       - name: Build
         run: npm run build
 
       - name: Synthesize CDK (generates CloudFormation templates)
         run: npm run cdk:synth
-        continue-on-error: true  # SSM parameters may not exist yet in CI
 
       - name: Run Checkov on CloudFormation templates
         uses: bridgecrewio/checkov-action@v12
@@ -78,6 +87,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
 
       - name: Build
         run: npm run build
@@ -120,6 +132,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
 
       - name: Build
         run: npm run build
