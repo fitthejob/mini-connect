@@ -40,28 +40,8 @@ export class LexStack extends cdk.Stack {
             botVersion: botVersion.attrBotVersion,
         });
         this.botAliasArn = botAlias.attrArn;
-        new lex.CfnResourcePolicy(this, `BotConnectAssociation-${props.envName}`, {
-            resourceArn: botAlias.attrArn,
-            policy: {
-                Version: "2012-10-17",
-                Statement: [
-                    {
-                        Effect: "Allow",
-                        Principal: {
-                            Service: "connect.amazonaws.com",
-                        },
-                        Action: "lex:RecognizeText",
-                        Resource: botAlias.attrArn,
-                        Condition: {
-                            StringEquals: {
-                                "aws:SourceArn": props.instanceArn,
-                                "aws:SourceAccount": cdk.Stack.of(this).account,
-                            },
-                        },
-                    },
-                ],
-            },
-        });
+        // CfnIntegrationAssociation below is sufficient to grant Connect access to the bot
+        // CfnResourcePolicy is not required when using the integration association pattern
         new connect.CfnIntegrationAssociation(this, `LexBotIntegration-${props.envName}`, {
             instanceId: props.instanceArn, // CfnIntegrationAssociation expects the full instance ARN
             integrationType: "LEX_BOT",

@@ -70,6 +70,7 @@ const lambdaStack = new LambdaStack(app, "MiniConnect-Lambda", {
   envName: env,
   s3Stack,
   dynamoDbStack,
+  kmsStack,
 });
 
 const lexStack = new LexStack(app, "MiniConnect-Lex", {

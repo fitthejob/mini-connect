@@ -1,14 +1,17 @@
 import * as cdk from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 import { S3Stack } from "./s3-stack.js";
 import { DynamoDbStack } from "./dynamodb-stack.js";
+import { KmsStack } from "./kms-stack.js";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
 
 interface LambdaStackProps extends cdk.StackProps {
   s3Stack: S3Stack;
   dynamoDbStack: DynamoDbStack;
+  kmsStack: KmsStack;
   envName: string;
 }
 
@@ -17,6 +20,14 @@ export class LambdaStack extends cdk.Stack {
   readonly memberLookupHandler: lambda.Function;
   constructor(scope: Construct, id: string, props: LambdaStackProps) {
     super(scope, id, props);
+
+    const dlq = new sqs.Queue(this, `LambdaDLQ-${props.envName}`, {
+      encryption: sqs.QueueEncryption.KMS,
+      encryptionMasterKey: props.kmsStack.memberDataKey,
+      enforceSSL: true,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     this.hrsOfOpsHandler = new lambda.Function(
       this,
       `HrsOfOpsHandler-${props.envName}`,
@@ -31,10 +42,16 @@ export class LambdaStack extends cdk.Stack {
             `/mini-connect/${props.envName}/lambdas/hrs_of_ops/object_version`,
           ),
         ),
+        deadLetterQueue: dlq,
+        reservedConcurrentExecutions: 10,
       },
     );
     this.hrsOfOpsHandler.grantInvoke(
-      new iam.ServicePrincipal("connect.amazonaws.com"),
+      new iam.ServicePrincipal("connect.amazonaws.com", {
+        conditions: {
+          ArnLike: { "aws:SourceAccount": cdk.Stack.of(this).account },
+        },
+      }),
     );
     new cdk.CfnOutput(this, `HrsOfOpsHandlerArn-${props.envName}`, {
       value: this.hrsOfOpsHandler.functionArn,
@@ -58,10 +75,17 @@ export class LambdaStack extends cdk.Stack {
         environment: {
           MEMBER_TABLE_NAME: props.dynamoDbStack.memberTable.tableName,
         },
+        environmentEncryption: props.kmsStack.memberDataKey,
+        deadLetterQueue: dlq,
+        reservedConcurrentExecutions: 10,
       },
     );
     this.memberLookupHandler.grantInvoke(
-      new iam.ServicePrincipal("connect.amazonaws.com"),
+      new iam.ServicePrincipal("connect.amazonaws.com", {
+        conditions: {
+          ArnLike: { "aws:SourceAccount": cdk.Stack.of(this).account },
+        },
+      }),
     );
     props.dynamoDbStack.memberTable.grantReadData(this.memberLookupHandler);
     new cdk.CfnOutput(this, `MemberLookupHandlerArn-${props.envName}`, {
