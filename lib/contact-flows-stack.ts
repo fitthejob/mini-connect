@@ -17,6 +17,11 @@ interface ContactFlowsStackProps extends cdk.StackProps {
   hrsOfOpsArn: string;
   memberLookupArn: string;
   lexBotAliasArn: string;
+  claimsLookupArn: string;
+  providerLookupArn: string;
+  formularyLookupArn: string;
+  billingLookupArn: string;
+  procedureLookupArn: string;
 }
 
 function requireArtifact(
@@ -93,6 +98,11 @@ export class ContactFlowsStack extends cdk.Stack {
       lambdas: {
         hrsOfOps: props.hrsOfOpsArn,
         memberLookup: props.memberLookupArn,
+        claimsLookup: props.claimsLookupArn,
+        providerLookup: props.providerLookupArn,
+        formularyLookup: props.formularyLookupArn,
+        billingLookup: props.billingLookupArn,
+        procedureLookup: props.procedureLookupArn,
       },
       lexBotAliases: {
         mainInbound: props.lexBotAliasArn,

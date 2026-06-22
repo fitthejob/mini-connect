@@ -25,6 +25,11 @@
     "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=prod",
     "deploy:customer-profiles": "cdk deploy MiniConnect-CustomerProfiles",
     "deploy:backend-data": "cdk deploy MiniConnect-BackendData",
+    "deploy:claims": "cdk deploy MiniConnect-Claims",
+    "deploy:providers": "cdk deploy MiniConnect-Providers",
+    "deploy:formulary": "cdk deploy MiniConnect-Formulary",
+    "deploy:billing": "cdk deploy MiniConnect-Billing",
+    "deploy:procedure-codes": "cdk deploy MiniConnect-ProcedureCodes",
     "seed:profiles": "tsx ./scripts/seed-customer-profiles.ts",
     "validate:flows": "tsx ./scripts/validate-flows.ts dev",
     "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5"

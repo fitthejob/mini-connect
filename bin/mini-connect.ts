@@ -12,7 +12,12 @@ import { mainInboundBotCatalog } from "../src/bots/main-inbound-flow/catalog.js"
 import { MonitoringOpsStack } from "../lib/observability/monitoring-ops-stack.js";
 import { MonitoringDevStack } from "../lib/observability/monitoring-dev-stack.js";
 import { CustomerProfilesStack } from "../lib/customer-profiles-stack.js";
-import { BackendDataStack } from "../lib/backend-data-stack.js";
+import { BackendDataStack } from "../lib/backend/backend-data-stack.js";
+import { ClaimsStack } from "../lib/backend/claims-stack.js";
+import { ProvidersStack } from "../lib/backend/providers-stack.js";
+import { FormularyStack } from "../lib/backend/formulary-stack.js";
+import { BillingStack } from "../lib/backend/billing-stack.js";
+import { ProcedureCodesStack } from "../lib/backend/procedure-codes-stack.js";
 import { AwsSolutionsChecks } from "cdk-nag";
 
 const app = new cdk.App();
@@ -28,6 +33,8 @@ const awsEnv = {
   account: process.env.CDK_DEFAULT_ACCOUNT,
   region: process.env.CDK_DEFAULT_REGION,
 };
+
+// ── Foundational infrastructure ──────────────────────────────────────────────
 
 const connectInstanceStack = new ConnectInstanceStack(
   app,
@@ -45,20 +52,6 @@ const kmsStack = new KmsStack(app, "MiniConnect-Kms", {
   envName: env,
 });
 
-const connectQueuesStack = new ConnectQueuesStack(app, "MiniConnect-Queues", {
-  // env: accountMap[env],
-  env: awsEnv,
-  envName: env,
-  instanceArn: connectInstanceStack.instanceArn,
-});
-
-const backendDataStack = new BackendDataStack(app, "MiniConnect-BackendData", {
-  // env: accountMap[env],
-  env: awsEnv,
-  envName: env,
-  kmsStack,
-});
-
 const dynamoDbStack = new DynamoDbStack(app, "MiniConnect-DynamoDB", {
   // env: accountMap[env],
   env: awsEnv,
@@ -73,13 +66,13 @@ const s3Stack = new S3Stack(app, "MiniConnect-S3", {
   kmsStack,
 });
 
-const lambdaStack = new LambdaStack(app, "MiniConnect-Lambda", {
+// ── Connect resources ─────────────────────────────────────────────────────────
+
+const connectQueuesStack = new ConnectQueuesStack(app, "MiniConnect-Queues", {
   // env: accountMap[env],
   env: awsEnv,
   envName: env,
-  s3Stack,
-  dynamoDbStack,
-  kmsStack,
+  instanceArn: connectInstanceStack.instanceArn,
 });
 
 new CustomerProfilesStack(app, "MiniConnect-CustomerProfiles", {
@@ -96,6 +89,75 @@ const lexStack = new LexStack(app, "MiniConnect-Lex", {
   catalog: mainInboundBotCatalog,
 });
 
+// ── Core Lambdas ──────────────────────────────────────────────────────────────
+
+const lambdaStack = new LambdaStack(app, "MiniConnect-Lambda", {
+  // env: accountMap[env],
+  env: awsEnv,
+  envName: env,
+  s3Stack,
+  dynamoDbStack,
+  kmsStack,
+});
+
+// ── Backend data layer ────────────────────────────────────────────────────────
+
+const backendDataStack = new BackendDataStack(app, "MiniConnect-BackendData", {
+  // env: accountMap[env],
+  env: awsEnv,
+  envName: env,
+  kmsStack,
+});
+
+// ── Domain Lambda stacks (one per health plan domain) ─────────────────────────
+
+const claimsStack = new ClaimsStack(app, "MiniConnect-Claims", {
+  // env: accountMap[env],
+  env: awsEnv,
+  envName: env,
+  kmsStack,
+  s3Stack,
+  backendDataStack,
+});
+
+const providersStack = new ProvidersStack(app, "MiniConnect-Providers", {
+  // env: accountMap[env],
+  env: awsEnv,
+  envName: env,
+  kmsStack,
+  s3Stack,
+  backendDataStack,
+});
+
+const formularyStack = new FormularyStack(app, "MiniConnect-Formulary", {
+  // env: accountMap[env],
+  env: awsEnv,
+  envName: env,
+  kmsStack,
+  s3Stack,
+  backendDataStack,
+});
+
+const billingStack = new BillingStack(app, "MiniConnect-Billing", {
+  // env: accountMap[env],
+  env: awsEnv,
+  envName: env,
+  kmsStack,
+  s3Stack,
+  backendDataStack,
+});
+
+const procedureCodesStack = new ProcedureCodesStack(app, "MiniConnect-ProcedureCodes", {
+  // env: accountMap[env],
+  env: awsEnv,
+  envName: env,
+  kmsStack,
+  s3Stack,
+  backendDataStack,
+});
+
+// ── Contact flows ─────────────────────────────────────────────────────────────
+
 new ContactFlowsStack(app, "MiniConnect-ContactFlows", {
   // env: accountMap[env],
   env: awsEnv,
@@ -105,7 +167,14 @@ new ContactFlowsStack(app, "MiniConnect-ContactFlows", {
   hrsOfOpsArn: lambdaStack.hrsOfOpsHandler.functionArn,
   memberLookupArn: lambdaStack.memberLookupHandler.functionArn,
   lexBotAliasArn: lexStack.botAliasArn,
+  claimsLookupArn: claimsStack.claimsLookupHandler.functionArn,
+  providerLookupArn: providersStack.providerLookupHandler.functionArn,
+  formularyLookupArn: formularyStack.formularyLookupHandler.functionArn,
+  billingLookupArn: billingStack.billingLookupHandler.functionArn,
+  procedureLookupArn: procedureCodesStack.procedureLookupHandler.functionArn,
 });
+
+// ── Observability ─────────────────────────────────────────────────────────────
 
 new MonitoringOpsStack(app, "MiniConnect-MonitoringOps", {
   // env: accountMap[env],

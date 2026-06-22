@@ -7,6 +7,11 @@ const ssmClient = new SSMClient({}); // uses default AWS credential chain
 const parameters = [
   `/mini-connect/${environment}/lambdas/hrs_of_ops/object_version`,
   `/mini-connect/${environment}/lambdas/member_lookup/object_version`,
+  `/mini-connect/${environment}/lambdas/claims_lookup/object_version`,
+  `/mini-connect/${environment}/lambdas/provider_lookup/object_version`,
+  `/mini-connect/${environment}/lambdas/formulary_lookup/object_version`,
+  `/mini-connect/${environment}/lambdas/billing_lookup/object_version`,
+  `/mini-connect/${environment}/lambdas/procedure_lookup/object_version`,
 ];
 
 async function createPlaceholder(parameterPath: string): Promise<void> {

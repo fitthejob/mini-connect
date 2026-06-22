@@ -1,7 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { Construct } from "constructs";
-import { KmsStack } from "./kms-stack.js";
+import { KmsStack } from "../kms-stack.js";
 
 interface BackendDataStackProps extends cdk.StackProps {
   envName: string;

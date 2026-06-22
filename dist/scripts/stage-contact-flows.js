@@ -19,6 +19,11 @@ const bindings = {
     lambdas: {
         hrsOfOps: "${Lambda.hrsOfOps.Arn}",
         memberLookup: "${Lambda.memberLookup.Arn}",
+        claimsLookup: "${Lambda.claimsLookup.Arn}",
+        providerLookup: "${Lambda.providerLookup.Arn}",
+        formularyLookup: "${Lambda.formularyLookup.Arn}",
+        billingLookup: "${Lambda.billingLookup.Arn}",
+        procedureLookup: "${Lambda.procedureLookup.Arn}",
     },
 };
 const result = renderFlowCatalog({

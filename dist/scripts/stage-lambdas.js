@@ -18,6 +18,11 @@ const cfnClient = new CloudFormationClient({}); // uses default AWS credential c
 const lambdaRegistry = {
     hrs_of_ops: "hrs_of_ops.py",
     member_lookup: "member_lookup.py",
+    claims_lookup: "claims_lookup.py",
+    provider_lookup: "provider_lookup.py",
+    formulary_lookup: "formulary_lookup.py",
+    billing_lookup: "billing_lookup.py",
+    procedure_lookup: "procedure_lookup.py",
 };
 async function resolveBucketName() {
     const response = await cfnClient.send(new DescribeStacksCommand({ StackName: "MiniConnect-S3" }));
