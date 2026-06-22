@@ -3,6 +3,7 @@ import {
   ConnectParticipantWithLexBotActionBuilder,
   DisconnectParticipantActionBuilder,
   FlowBuilder,
+  GetCustomerProfileActionBuilder,
   InvokeLambdaFunctionActionBuilder,
   MessageParticipantActionBuilder,
   SetCustomerQueueFlowActionBuilder,
@@ -79,8 +80,24 @@ export const mainInboundSpec: FlowSpec = {
 
     const compareHours = new CompareActionBuilder("CompareHours")
       .comparisonValue("$.External.isBusinessHours")
-      .when(equalsCondition("true"), "Greeting")
+      .when(equalsCondition("true"), "LookupByPhone")
       .onError("CheckLanguageForClosed", "NoMatchingCondition")
+      .build();
+
+    // ANI lookup — identifies the caller by phone number before they say a word.
+    // All error branches fail open to Greeting so no caller is stranded by a
+    // profile miss. Response fields land at $.Customer.* for the rest of the call.
+    const lookupByPhone = new GetCustomerProfileActionBuilder("LookupByPhone")
+      .identifier("_phone", "$.CustomerEndpoint.Address")
+      .responseField("FirstName")
+      .responseField("LastName")
+      .responseField("Attributes.memberId")
+      .responseField("Attributes.planId")
+      .responseField("Attributes.coverageStatus")
+      .next("Greeting")
+      .onError("Greeting", "NoneFoundError")
+      .onError("Greeting", "MultipleFoundError")
+      .onError("Greeting")
       .build();
 
     const checkLanguageForClosed = new CompareActionBuilder(
@@ -156,6 +173,7 @@ export const mainInboundSpec: FlowSpec = {
       .add(checkLanguageForClosed)
       .add(closedMessageEnglish)
       .add(closedMessageSpanish)
+      .add(lookupByPhone)
       .add(greeting)
       .add(setSupportQueueFlow)
       .add(setWorkingQueue)
