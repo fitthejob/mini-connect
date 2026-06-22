@@ -1,14 +1,15 @@
 import * as cdk from "aws-cdk-lib";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
-import * as kms from "aws-cdk-lib/aws-kms";
 import * as sns from "aws-cdk-lib/aws-sns";
 import { Construct } from "constructs";
 import { ConnectInstanceStack } from "../connect-instance-stack.js";
+import { KmsStack } from "../kms-stack.js";
 
 interface MonitoringOpsStackProps extends cdk.StackProps {
   envName: string;
   connectInstanceStack: ConnectInstanceStack;
+  kmsStack: KmsStack;
 }
 
 export class MonitoringOpsStack extends cdk.Stack {
@@ -23,14 +24,9 @@ export class MonitoringOpsStack extends cdk.Stack {
       },
     );
 
-    const opsTopicKey = new kms.Key(this, `OpsAlarmTopicKey-${props.envName}`, {
-      enableKeyRotation: true,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
     const opsTopic = new sns.Topic(this, `OpsAlarmTopic-${props.envName}`, {
       displayName: `MiniConnect Ops Alarms (${props.envName})`,
-      masterKey: opsTopicKey,
+      masterKey: props.kmsStack.snsAlarmKey,
     });
 
     const concurrentCallsMetric = new cloudwatch.Metric({

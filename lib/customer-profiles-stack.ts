@@ -18,7 +18,7 @@ export class CustomerProfilesStack extends cdk.Stack {
 
     const dlq = new sqs.Queue(this, `CustomerProfilesDLQ-${props.envName}`, {
       encryption: sqs.QueueEncryption.KMS,
-      encryptionMasterKey: props.kmsStack.memberDataKey,
+      encryptionMasterKey: props.kmsStack.customerProfilesDlqKey,
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });

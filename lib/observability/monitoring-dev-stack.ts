@@ -1,16 +1,17 @@
 import * as cdk from "aws-cdk-lib";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
-import * as kms from "aws-cdk-lib/aws-kms";
 import * as sns from "aws-cdk-lib/aws-sns";
 import { Construct } from "constructs";
 import { DynamoDbStack } from "../dynamodb-stack.js";
+import { KmsStack } from "../kms-stack.js";
 import { LambdaStack } from "../lambda-stack.js";
 
 interface MonitoringDevStackProps extends cdk.StackProps {
   envName: string;
   lambdaStack: LambdaStack;
   dynamoDbStack: DynamoDbStack;
+  kmsStack: KmsStack;
 }
 
 export class MonitoringDevStack extends cdk.Stack {
@@ -25,14 +26,9 @@ export class MonitoringDevStack extends cdk.Stack {
       },
     );
 
-    const devTopicKey = new kms.Key(this, `DevAlarmTopicKey-${props.envName}`, {
-      enableKeyRotation: true,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
     const devTopic = new sns.Topic(this, `DevAlarmTopic-${props.envName}`, {
       displayName: `MiniConnect Dev Alarms (${props.envName})`,
-      masterKey: devTopicKey,
+      masterKey: props.kmsStack.snsAlarmKey,
     });
 
     const hrsOfOpsLambdaErrorsMetric = new cloudwatch.Metric({

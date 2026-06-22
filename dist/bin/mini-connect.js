@@ -85,6 +85,7 @@ new MonitoringOpsStack(app, "MiniConnect-MonitoringOps", {
     env: awsEnv,
     envName: env,
     connectInstanceStack,
+    kmsStack,
 });
 new MonitoringDevStack(app, "MiniConnect-MonitoringDev", {
     // env: accountMap[env],
@@ -92,5 +93,6 @@ new MonitoringDevStack(app, "MiniConnect-MonitoringDev", {
     envName: env,
     lambdaStack,
     dynamoDbStack,
+    kmsStack,
 });
 new AwsSolutionsChecks(app);
