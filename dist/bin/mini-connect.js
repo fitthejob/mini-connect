@@ -11,6 +11,7 @@ import { mainInboundBotCatalog } from "../src/bots/main-inbound-flow/catalog.js"
 import { MonitoringOpsStack } from "../lib/observability/monitoring-ops-stack.js";
 import { MonitoringDevStack } from "../lib/observability/monitoring-dev-stack.js";
 import { CustomerProfilesStack } from "../lib/customer-profiles-stack.js";
+import { BackendDataStack } from "../lib/backend-data-stack.js";
 import { AwsSolutionsChecks } from "cdk-nag";
 const app = new cdk.App();
 const env = app.node.tryGetContext("env") ?? "dev";
@@ -37,6 +38,12 @@ const connectQueuesStack = new ConnectQueuesStack(app, "MiniConnect-Queues", {
     env: awsEnv,
     envName: env,
     instanceArn: connectInstanceStack.instanceArn,
+});
+const backendDataStack = new BackendDataStack(app, "MiniConnect-BackendData", {
+    // env: accountMap[env],
+    env: awsEnv,
+    envName: env,
+    kmsStack,
 });
 const dynamoDbStack = new DynamoDbStack(app, "MiniConnect-DynamoDB", {
     // env: accountMap[env],

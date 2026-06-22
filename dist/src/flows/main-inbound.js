@@ -109,27 +109,36 @@ export const mainInboundSpec = {
             .text("¿Cómo puedo ayudarle hoy? Puede decir: estado de reclamación, pregunta sobre beneficios, autorización previa, buscar proveedor, ayuda con receta, verificar elegibilidad, o pregunta de facturación.")
             .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
             .sessionAttribute("x-amz-lex:locale-id", "es_US")).build();
-        // Store call reason as contact attribute so agents see it on their screen.
-        // All intents currently route to the same support queue — split into dedicated
-        // queues when additional queues are provisioned.
+        // Store call reason and Lex slot values as contact attributes.
+        // Slot values use JSONPath ($.Lex.Slots.SlotName) — Connect resolves them at runtime.
+        // Agents see callReason and relevant slot values on their screen before answering.
+        // All intents route to the same support queue — split when dedicated queues are added.
         const setIntentClaims = new UpdateContactAttributesActionBuilder("SetIntentClaims")
             .attribute("callReason", "claims_status")
+            .attribute("slotClaimNumber", "$.Lex.Slots.ClaimNumber")
+            .attribute("slotDateOfService", "$.Lex.Slots.DateOfService")
             .next("SetSupportQueueFlow")
             .build();
         const setIntentBenefits = new UpdateContactAttributesActionBuilder("SetIntentBenefits")
             .attribute("callReason", "benefits_inquiry")
+            .attribute("slotServiceType", "$.Lex.Slots.ServiceType")
             .next("SetSupportQueueFlow")
             .build();
         const setIntentPriorAuth = new UpdateContactAttributesActionBuilder("SetIntentPriorAuth")
             .attribute("callReason", "prior_authorization")
+            .attribute("slotProcedureCode", "$.Lex.Slots.ProcedureCode")
+            .attribute("slotProviderName", "$.Lex.Slots.ProviderName")
             .next("SetSupportQueueFlow")
             .build();
         const setIntentProviderLookup = new UpdateContactAttributesActionBuilder("SetIntentProviderLookup")
             .attribute("callReason", "provider_lookup")
+            .attribute("slotSpecialty", "$.Lex.Slots.Specialty")
+            .attribute("slotZipCode", "$.Lex.Slots.ZipCode")
             .next("SetSupportQueueFlow")
             .build();
         const setIntentPrescription = new UpdateContactAttributesActionBuilder("SetIntentPrescription")
             .attribute("callReason", "prescription")
+            .attribute("slotMedicationName", "$.Lex.Slots.MedicationName")
             .next("SetSupportQueueFlow")
             .build();
         // Eligibility is self-service — coverage status is already available from the
@@ -137,6 +146,7 @@ export const mainInboundSpec = {
         // simple status checks. Offer transfer if the caller wants more help.
         const setIntentEligibility = new UpdateContactAttributesActionBuilder("SetIntentEligibility")
             .attribute("callReason", "eligibility")
+            .attribute("slotMemberId", "$.Lex.Slots.MemberId")
             .next("CheckEligibilityLanguage")
             .build();
         const checkEligibilityLanguage = new CompareActionBuilder("CheckEligibilityLanguage")
@@ -211,6 +221,7 @@ export const mainInboundSpec = {
             .build();
         const setIntentBilling = new UpdateContactAttributesActionBuilder("SetIntentBilling")
             .attribute("callReason", "billing")
+            .attribute("slotInvoiceNumber", "$.Lex.Slots.InvoiceNumber")
             .next("SetSupportQueueFlow")
             .build();
         const setSupportQueueFlow = new SetCustomerQueueFlowActionBuilder("SetSupportQueueFlow")

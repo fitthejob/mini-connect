@@ -21,12 +21,13 @@
     "deploy:dynamodb": "cdk deploy MiniConnect-DynamoDB",
     "deploy:monitoring-ops": "cdk deploy MiniConnect-MonitoringOps",
     "deploy:monitoring-dev": "cdk deploy MiniConnect-MonitoringDev",
-    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=dev",
-    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=prod",
+    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=dev",
+    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=prod",
     "deploy:customer-profiles": "cdk deploy MiniConnect-CustomerProfiles",
+    "deploy:backend-data": "cdk deploy MiniConnect-BackendData",
     "seed:profiles": "tsx ./scripts/seed-customer-profiles.ts",
     "validate:flows": "tsx ./scripts/validate-flows.ts dev",
-    "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5"
+    "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.203.0",
