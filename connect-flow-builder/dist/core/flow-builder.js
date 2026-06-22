@@ -82,11 +82,15 @@ export class BuiltFlow {
             transitions.errors?.[0]?.nextAction ??
             transitions.conditions?.[0]?.nextAction;
         // Connect requires a NoMatchingError entry in Errors for every action that
-        // supports errors. Add a fallback pointing to nextAction if not already present.
+        // supports errors — except Compare, which only accepts NoMatchingCondition.
         const actionDef = getActionDefinition(action.type);
         const errors = transitions.errors ?? [];
         const hasNoMatchingError = errors.some((e) => e.errorType === "NoMatchingError");
-        const effectiveErrors = actionDef.supportsErrors && !hasNoMatchingError && nextAction
+        const needsNoMatchingError = actionDef.supportsErrors &&
+            !hasNoMatchingError &&
+            nextAction &&
+            action.type !== "Compare";
+        const effectiveErrors = needsNoMatchingError
             ? [...errors, { nextAction, errorType: "NoMatchingError" }]
             : errors;
         return {

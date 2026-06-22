@@ -1265,6 +1265,7 @@ test("InvokeLambdaFunctionActionBuilder emits the expected Lambda parameter", ()
 
   assert.equal(action.type, "InvokeLambdaFunction");
   assert.deepEqual(action.parameters, {
+    InvocationTimeLimitSeconds: "8",
     LambdaFunctionARN: "arn:aws:lambda:example",
   });
 });
