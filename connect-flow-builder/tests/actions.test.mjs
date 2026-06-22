@@ -1231,6 +1231,7 @@ test("GetParticipantInputActionBuilder emits the expected Lex-backed input block
 
   assert.equal(action.type, "GetParticipantInput");
   assert.deepEqual(action.parameters, {
+    InputTimeLimitSeconds: "5",
     Text: "How can we help?",
     LexV2Bot: "arn:aws:lex:example",
   });
@@ -2476,13 +2477,15 @@ test("flow validation fails when TransferParticipantToThirdParty is missing requ
 });
 
 test("flow validation fails when a required action parameter is missing", () => {
+  // A Lex-backed GetParticipantInput requires both Text and LexV2Bot.
+  // Manually construct an action that has LexV2Bot set but no Text to trigger validation.
   const invalidAction = new GetParticipantInputActionBuilder("GetInput")
-    .text("Describe your request.")
+    .lexBotAliasArn("arn:aws:lex:us-east-1:123:bot-alias/ABC/XYZ")
     .build();
 
   assert.throws(
-    () => new FlowBuilder("MissingLexBot").startWith(invalidAction).build(),
-    /requires "LexV2Bot" to be a non-empty string/,
+    () => new FlowBuilder("MissingText").startWith(invalidAction).build(),
+    /requires "Text" to be a non-empty string/,
   );
 });
 

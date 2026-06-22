@@ -455,7 +455,8 @@ function validateGetParticipantInputAction(action) {
     const hasTouchtoneBufferMode = "EnableDTMFBuffer" in action.parameters;
     const isStoreInputMode = action.parameters.StoreInput === "True"
         || action.parameters.StoreInput === "true";
-    const hasLexPrompt = "Text" in action.parameters || "LexV2Bot" in action.parameters;
+    const hasLexBot = "LexV2Bot" in action.parameters;
+    const isDtmfMode = "InputTimeLimitSeconds" in action.parameters && !hasLexBot;
     if (hasTouchtoneBufferMode) {
         validateSetTouchtoneBufferBehaviorAction(action);
         return;
@@ -464,11 +465,15 @@ function validateGetParticipantInputAction(action) {
         validateStoreCustomerInputAction(action);
         return;
     }
-    if (hasLexPrompt) {
+    // Pure DTMF mode: has InputTimeLimitSeconds but no LexV2Bot
+    if (isDtmfMode) {
+        return;
+    }
+    if (hasLexBot) {
         validateLexBackedGetParticipantInputAction(action);
         return;
     }
-    throw new Error(`Action "${action.id}" of type "GetParticipantInput" requires either the Lex-backed mode (Text plus LexV2Bot), the stored-input mode (StoreInput with proven DTMF configuration), or the touchtone-buffer mode (EnableDTMFBuffer).`);
+    throw new Error(`Action "${action.id}" of type "GetParticipantInput" requires either the Lex-backed mode (Text plus LexV2Bot), the DTMF mode (InputTimeLimitSeconds without LexV2Bot), the stored-input mode (StoreInput with proven DTMF configuration), or the touchtone-buffer mode (EnableDTMFBuffer).`);
 }
 function validateLexBackedGetParticipantInputAction(action) {
     requireNonEmptyStringParameter(action, "Text");

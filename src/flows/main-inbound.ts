@@ -4,6 +4,7 @@ import {
   DisconnectParticipantActionBuilder,
   FlowBuilder,
   GetCustomerProfileActionBuilder,
+  GetParticipantInputActionBuilder,
   InvokeLambdaFunctionActionBuilder,
   MessageParticipantActionBuilder,
   SetCustomerQueueFlowActionBuilder,
@@ -199,9 +200,93 @@ export const mainInboundSpec: FlowSpec = {
       .next("SetSupportQueueFlow")
       .build();
 
+    // Eligibility is self-service — coverage status is already available from the
+    // ANI lookup at $.Customer.Attributes.coverageStatus. No agent needed for
+    // simple status checks. Offer transfer if the caller wants more help.
     const setIntentEligibility = new UpdateContactAttributesActionBuilder("SetIntentEligibility")
       .attribute("callReason", "eligibility")
+      .next("CheckEligibilityLanguage")
+      .build();
+
+    const checkEligibilityLanguage = new CompareActionBuilder("CheckEligibilityLanguage")
+      .comparisonValue("$.Attributes.preferredLanguage")
+      .when(equalsCondition("es"), "CheckCoverageStatusSpanish")
+      .onError("CheckCoverageStatusEnglish", "NoMatchingCondition")
+      .build();
+
+    const checkCoverageStatusEnglish = new CompareActionBuilder("CheckCoverageStatusEnglish")
+      .comparisonValue("$.Customer.Attributes.coverageStatus")
+      .when(equalsCondition("ACTIVE"), "EligibilityActiveEnglish")
+      .when(equalsCondition("SUSPENDED"), "EligibilitySuspendedEnglish")
+      .when(equalsCondition("PENDING"), "EligibilityPendingEnglish")
+      .onError("EligibilityUnknownEnglish", "NoMatchingCondition")
+      .build();
+
+    const checkCoverageStatusSpanish = new CompareActionBuilder("CheckCoverageStatusSpanish")
+      .comparisonValue("$.Customer.Attributes.coverageStatus")
+      .when(equalsCondition("ACTIVE"), "EligibilityActiveSpanish")
+      .when(equalsCondition("SUSPENDED"), "EligibilitySuspendedSpanish")
+      .when(equalsCondition("PENDING"), "EligibilityPendingSpanish")
+      .onError("EligibilityUnknownSpanish", "NoMatchingCondition")
+      .build();
+
+    const eligibilityActiveEnglish = new MessageParticipantActionBuilder("EligibilityActiveEnglish")
+      .text("Your coverage is currently active. You have full access to your benefits under your current plan.")
+      .next("OfferTransferEnglish")
+      .build();
+
+    const eligibilitySuspendedEnglish = new MessageParticipantActionBuilder("EligibilitySuspendedEnglish")
+      .text("Your coverage is currently suspended. Please speak with a representative for assistance.")
       .next("SetSupportQueueFlow")
+      .build();
+
+    const eligibilityPendingEnglish = new MessageParticipantActionBuilder("EligibilityPendingEnglish")
+      .text("Your coverage is currently pending. It may take a few business days to become active.")
+      .next("OfferTransferEnglish")
+      .build();
+
+    const eligibilityUnknownEnglish = new MessageParticipantActionBuilder("EligibilityUnknownEnglish")
+      .text("We were unable to locate your eligibility information. Let me connect you with a representative.")
+      .next("SetSupportQueueFlow")
+      .build();
+
+    const eligibilityActiveSpanish = new MessageParticipantActionBuilder("EligibilityActiveSpanish")
+      .text("Su cobertura está actualmente activa. Tiene acceso completo a sus beneficios bajo su plan actual.")
+      .next("OfferTransferSpanish")
+      .build();
+
+    const eligibilitySuspendedSpanish = new MessageParticipantActionBuilder("EligibilitySuspendedSpanish")
+      .text("Su cobertura está actualmente suspendida. Por favor hable con un representante para obtener ayuda.")
+      .next("SetSupportQueueFlow")
+      .build();
+
+    const eligibilityPendingSpanish = new MessageParticipantActionBuilder("EligibilityPendingSpanish")
+      .text("Su cobertura está actualmente pendiente. Puede tardar algunos días hábiles en activarse.")
+      .next("OfferTransferSpanish")
+      .build();
+
+    const eligibilityUnknownSpanish = new MessageParticipantActionBuilder("EligibilityUnknownSpanish")
+      .text("No pudimos encontrar su información de elegibilidad. Permítame conectarlo con un representante.")
+      .next("SetSupportQueueFlow")
+      .build();
+
+    // Offer caller the option to speak with an agent or end the call
+    const offerTransferEnglish = new GetParticipantInputActionBuilder("OfferTransferEnglish")
+      .text("If you have additional questions, press 1 to speak with a representative. Press 2 to end the call.")
+      .inputTimeLimitSeconds(8)
+      .when(equalsCondition("1"), "SetSupportQueueFlow")
+      .when(equalsCondition("2"), "Disconnect")
+      .onError("Disconnect", "InputTimeLimitExceeded")
+      .onError("Disconnect")
+      .build();
+
+    const offerTransferSpanish = new GetParticipantInputActionBuilder("OfferTransferSpanish")
+      .text("Si tiene preguntas adicionales, oprima 1 para hablar con un representante. Oprima 2 para terminar la llamada.")
+      .inputTimeLimitSeconds(8)
+      .when(equalsCondition("1"), "SetSupportQueueFlow")
+      .when(equalsCondition("2"), "Disconnect")
+      .onError("Disconnect", "InputTimeLimitExceeded")
+      .onError("Disconnect")
       .build();
 
     const setIntentBilling = new UpdateContactAttributesActionBuilder("SetIntentBilling")
@@ -258,6 +343,19 @@ export const mainInboundSpec: FlowSpec = {
       .add(setIntentProviderLookup)
       .add(setIntentPrescription)
       .add(setIntentEligibility)
+      .add(checkEligibilityLanguage)
+      .add(checkCoverageStatusEnglish)
+      .add(checkCoverageStatusSpanish)
+      .add(eligibilityActiveEnglish)
+      .add(eligibilitySuspendedEnglish)
+      .add(eligibilityPendingEnglish)
+      .add(eligibilityUnknownEnglish)
+      .add(eligibilityActiveSpanish)
+      .add(eligibilitySuspendedSpanish)
+      .add(eligibilityPendingSpanish)
+      .add(eligibilityUnknownSpanish)
+      .add(offerTransferEnglish)
+      .add(offerTransferSpanish)
       .add(setIntentBilling)
       .add(setSupportQueueFlow)
       .add(setWorkingQueue)
