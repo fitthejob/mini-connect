@@ -23,6 +23,7 @@ export class ConnectInstanceStack extends cdk.Stack {
         new logs.LogGroup(this, `ConnectFlowLogsGroup-${props.envName}`, {
             logGroupName: `/aws/connect/mc-${props.envName}`,
             retention: logs.RetentionDays.ONE_MONTH,
+            encryptionKey: props.kmsStack.memberDataKey,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
         new cdk.CfnOutput(this, `ConnectInstanceArn-${props.envName}`, {

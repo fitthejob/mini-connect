@@ -2,9 +2,11 @@ import * as cdk from "aws-cdk-lib";
 import * as connect from "aws-cdk-lib/aws-connect";
 import * as logs from "aws-cdk-lib/aws-logs";
 import { Construct } from "constructs";
+import { KmsStack } from "./kms-stack.js";
 
 interface ConnectInstanceStackProps extends cdk.StackProps {
   envName: string;
+  kmsStack: KmsStack;
 }
 
 export class ConnectInstanceStack extends cdk.Stack {
@@ -37,6 +39,7 @@ export class ConnectInstanceStack extends cdk.Stack {
     new logs.LogGroup(this, `ConnectFlowLogsGroup-${props.envName}`, {
       logGroupName: `/aws/connect/mc-${props.envName}`,
       retention: logs.RetentionDays.ONE_MONTH,
+      encryptionKey: props.kmsStack.memberDataKey,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
