@@ -21,8 +21,8 @@
     "deploy:dynamodb": "cdk deploy MiniConnect-DynamoDB",
     "deploy:monitoring-ops": "cdk deploy MiniConnect-MonitoringOps",
     "deploy:monitoring-dev": "cdk deploy MiniConnect-MonitoringDev",
-    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=dev",
-    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=prod",
+    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=dev",
+    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=prod",
     "deploy:customer-profiles": "cdk deploy MiniConnect-CustomerProfiles",
     "seed:profiles": "tsx ./scripts/seed-customer-profiles.ts",
     "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5"
