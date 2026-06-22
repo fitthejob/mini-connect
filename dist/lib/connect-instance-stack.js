@@ -18,13 +18,12 @@ export class ConnectInstanceStack extends cdk.Stack {
         this.instanceArn = instance.attrArn;
         this.instanceId = instance.attrId;
         // Connect creates this log group automatically when contactflowLogs is enabled.
-        // Importing it here sets a retention policy — without this it defaults to never expire,
-        // which means PHI (caller phone numbers, contact attributes) is retained indefinitely.
-        new logs.LogGroup(this, `ConnectFlowLogsGroup-${props.envName}`, {
+        // LogRetention custom resource handles both new and existing log groups — it calls
+        // PutRetentionPolicy regardless of whether the group already exists, avoiding the
+        // "resource already exists" error that new LogGroup() would throw.
+        new logs.LogRetention(this, `ConnectFlowLogRetention-${props.envName}`, {
             logGroupName: `/aws/connect/mc-${props.envName}`,
             retention: logs.RetentionDays.ONE_MONTH,
-            encryptionKey: props.kmsStack.memberDataKey,
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
         new cdk.CfnOutput(this, `ConnectInstanceArn-${props.envName}`, {
             value: instance.attrArn,

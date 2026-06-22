@@ -22,16 +22,15 @@ const awsEnv = {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION,
 };
-const kmsStack = new KmsStack(app, "MiniConnect-Kms", {
-    // env: accountMap[env],
-    env: awsEnv,
-    envName: env,
-});
 const connectInstanceStack = new ConnectInstanceStack(app, "MiniConnect-Instance", {
     // env: accountMap[env],
     env: awsEnv,
     envName: env,
-    kmsStack,
+});
+const kmsStack = new KmsStack(app, "MiniConnect-Kms", {
+    // env: accountMap[env],
+    env: awsEnv,
+    envName: env,
 });
 const connectQueuesStack = new ConnectQueuesStack(app, "MiniConnect-Queues", {
     // env: accountMap[env],
