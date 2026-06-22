@@ -17,7 +17,11 @@ export class LexStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: LexStackProps) {
     super(scope, id, props);
     const lexRole = new iam.Role(this, `LexRole-${props.envName}`, {
-      assumedBy: new iam.ServicePrincipal("lexv2.amazonaws.com"),
+      assumedBy: new iam.ServicePrincipal("lexv2.amazonaws.com", {
+        conditions: {
+          StringEquals: { "aws:SourceAccount": this.account },
+        },
+      }),
     });
     lexRole.addToPolicy(
       new iam.PolicyStatement({
@@ -26,7 +30,9 @@ export class LexStack extends cdk.Stack {
           "logs:CreateLogStream",
           "logs:PutLogEvents",
         ],
-        resources: ["arn:aws:logs:*:*:*"],
+        resources: [
+          `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lex/${props.catalog.name}-${props.envName}:*`,
+        ],
       }),
     );
     const bot = new lex.CfnBot(this, `${props.catalog.name}-${props.envName}`, {
