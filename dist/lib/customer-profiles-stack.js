@@ -21,12 +21,16 @@ export class CustomerProfilesStack extends cdk.Stack {
             resources: [dlq.queueArn],
         }));
         this.domainName = `mini-connect-${props.envName}`;
-        new customerprofiles.CfnDomain(this, `CustomerProfilesDomain-${props.envName}`, {
+        const domain = new customerprofiles.CfnDomain(this, `CustomerProfilesDomain-${props.envName}`, {
             domainName: this.domainName,
             defaultEncryptionKey: props.kmsStack.memberDataKey.keyArn,
             defaultExpirationDays: 366,
             deadLetterQueueUrl: dlq.queueUrl,
         });
+        // Customer Profiles sends a test SQS message during domain creation to validate
+        // the DLQ. Explicitly depend on the queue and its policy so CloudFormation does
+        // not create the domain before the policy is in place.
+        domain.node.addDependency(dlq);
         // NOTE: The domain-to-instance association cannot be done via CloudFormation
         // or the API — it must be performed manually in the Connect console using the
         // KMS key and DLQ provisioned by this stack. See docs/RUNBOOK.md → Customer Profiles.
