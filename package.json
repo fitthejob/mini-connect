@@ -31,6 +31,8 @@
     "deploy:billing": "cdk deploy MiniConnect-Billing",
     "deploy:procedure-codes": "cdk deploy MiniConnect-ProcedureCodes",
     "seed:profiles": "tsx ./scripts/seed-customer-profiles.ts",
+    "seed:backend": "tsx ./scripts/seed-backend-data.ts",
+    "teardown": "tsx ./scripts/teardown.ts",
     "validate:flows": "tsx ./scripts/validate-flows.ts dev",
     "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5"
   },
@@ -41,6 +43,8 @@
   },
   "devDependencies": {
     "@aws-sdk/client-cloudformation": "^3.1073.0",
+    "@aws-sdk/client-dynamodb": "^3.1073.0",
+    "@aws-sdk/util-dynamodb": "^3.996.5",
     "@aws-sdk/client-connect": "^3.1073.0",
     "@aws-sdk/client-customer-profiles": "^3.1073.0",
     "@aws-sdk/client-iam": "^3.1073.0",

@@ -6,6 +6,7 @@ export class S3Stack extends cdk.Stack {
         super(scope, id, props);
         const accessLogBucket = new s3.Bucket(this, `LambdaArtifactsAccessLogs-${props.envName}`, {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
+            autoDeleteObjects: true,
             enforceSSL: true,
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             encryption: s3.BucketEncryption.S3_MANAGED,
@@ -13,6 +14,7 @@ export class S3Stack extends cdk.Stack {
         });
         this.lambdaArtifactBucket = new s3.Bucket(this, `LambdaArtifacts-${props.envName}`, {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
+            autoDeleteObjects: true,
             versioned: true,
             encryptionKey: props.kmsStack.lambdaArtifactKey,
             encryption: s3.BucketEncryption.KMS,

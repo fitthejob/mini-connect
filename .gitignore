@@ -5,7 +5,11 @@ cdk.out/
 CLAUDE.md
 docs/
 scripts/seed-customer-profiles.ts
+scripts/seed-backend-data.ts
+scripts/teardown.ts
 dist/scripts/seed-customer-profiles.js
+dist/scripts/seed-backend-data.js
+dist/scripts/teardown.js
 .env
 .env.*
 *.pem
