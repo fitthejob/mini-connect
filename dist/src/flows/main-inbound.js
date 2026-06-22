@@ -65,7 +65,6 @@ export const mainInboundSpec = {
             .comparisonValue("$.Attributes.preferredLanguage")
             .when(equalsCondition("es"), "ClosedMessageSpanish")
             .onError("ClosedMessageEnglish", "NoMatchingCondition")
-            .onError("ClosedMessageEnglish")
             .build();
         const closedMessageEnglish = new MessageParticipantActionBuilder("ClosedMessageEnglish")
             .text("Thank you for calling Mini Connect. Our offices are currently closed. " +

@@ -104,7 +104,6 @@ export const mainInboundSpec: FlowSpec = {
       .comparisonValue("$.Attributes.preferredLanguage")
       .when(equalsCondition("es"), "ClosedMessageSpanish")
       .onError("ClosedMessageEnglish", "NoMatchingCondition")
-      .onError("ClosedMessageEnglish")
       .build();
 
     const closedMessageEnglish = new MessageParticipantActionBuilder(

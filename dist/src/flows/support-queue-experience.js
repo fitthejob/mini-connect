@@ -11,7 +11,6 @@ export const supportQueueExperienceSpec = {
             .comparisonValue("$.Attributes.preferredLanguage")
             .when(equalsCondition("es"), "SetVoiceSpanish")
             .onError("SetVoiceEnglish", "NoMatchingCondition")
-            .onError("SetVoiceEnglish")
             .build();
         const setVoiceEnglish = new UpdateContactTextToSpeechVoiceActionBuilder("SetVoiceEnglish")
             .voice("Joanna")
