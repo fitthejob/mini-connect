@@ -1,3 +1,4 @@
+import { getActionDefinition } from "./registry.js";
 import { validateFlowDefinition } from "./validators.js";
 import type {
   ConnectFlowAction,
@@ -108,6 +109,16 @@ export class BuiltFlow {
       transitions.errors?.[0]?.nextAction ??
       transitions.conditions?.[0]?.nextAction;
 
+    // Connect requires a NoMatchingError entry in Errors for every action that
+    // supports errors. Add a fallback pointing to nextAction if not already present.
+    const actionDef = getActionDefinition(action.type);
+    const errors = transitions.errors ?? [];
+    const hasNoMatchingError = errors.some((e) => e.errorType === "NoMatchingError");
+    const effectiveErrors =
+      actionDef.supportsErrors && !hasNoMatchingError && nextAction
+        ? [...errors, { nextAction, errorType: "NoMatchingError" as const }]
+        : errors;
+
     return {
       Identifier: action.id,
       Type: action.type,
@@ -121,10 +132,12 @@ export class BuiltFlow {
             Operands: condition.condition.operands,
           },
         })),
-        Errors: transitions.errors?.map((error) => ({
-          NextAction: error.nextAction,
-          ErrorType: error.errorType,
-        })),
+        Errors: effectiveErrors.length > 0
+          ? effectiveErrors.map((error) => ({
+              NextAction: error.nextAction,
+              ErrorType: error.errorType,
+            }))
+          : undefined,
       },
     };
   }
