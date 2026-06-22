@@ -27,6 +27,13 @@ const bindings: FlowBindings = {
   flowArns: {
     supportQueueExperience: "${Flow.supportQueueExperience.Arn}",
   },
+  lexBotAliases: {
+    mainInbound: "${LexBot.mainInbound.AliasArn}",
+  },
+  lambdas: {
+    hrsOfOps: "${Lambda.hrsOfOps.Arn}",
+    memberLookup: "${Lambda.memberLookup.Arn}",
+  },
 };
 
 const result = renderFlowCatalog({

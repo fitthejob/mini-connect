@@ -2,6 +2,32 @@ import type { BotIntent } from "../types.js";
 
 export const intents: BotIntent[] = [
   {
+    name: "EnglishIntent",
+    utterances: [
+      {
+        localeId: "en_US",
+        utterances: ["English", "one", "1"],
+      },
+      {
+        localeId: "es_US",
+        utterances: ["English", "uno", "1"],
+      },
+    ],
+  },
+  {
+    name: "SpanishIntent",
+    utterances: [
+      {
+        localeId: "en_US",
+        utterances: ["Spanish", "Español", "two", "2"],
+      },
+      {
+        localeId: "es_US",
+        utterances: ["Español", "español", "dos", "2"],
+      },
+    ],
+  },
+  {
     name: "ClaimsStatusIntent",
     utterances: [
       {

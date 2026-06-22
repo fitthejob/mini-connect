@@ -1,10 +1,15 @@
 import * as cdk from "aws-cdk-lib";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
+import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
+import * as sns from "aws-cdk-lib/aws-sns";
 export class MonitoringDevStack extends cdk.Stack {
     constructor(scope, id, props) {
         super(scope, id, props);
         const dashboard = new cloudwatch.Dashboard(this, `DevMonitoring-${props.envName}`, {
             dashboardName: `MiniConnect-Developer-${props.envName}`,
+        });
+        const devTopic = new sns.Topic(this, `DevAlarmTopic-${props.envName}`, {
+            displayName: `MiniConnect Dev Alarms (${props.envName})`,
         });
         const hrsOfOpsLambdaErrorsMetric = new cloudwatch.Metric({
             namespace: "AWS/Lambda",
@@ -62,6 +67,24 @@ export class MonitoringDevStack extends cdk.Stack {
             statistic: "p99",
             period: cdk.Duration.minutes(5),
         });
+        const hrsOfOpsErrorsAlarm = hrsOfOpsLambdaErrorsMetric.createAlarm(this, `HrsOfOpsErrorsAlarm-${props.envName}`, {
+            alarmName: `MiniConnect-HrsOfOpsErrors-${props.envName}`,
+            alarmDescription: "HrsOfOps Lambda is erroring — business hours routing may be affected.",
+            threshold: 1,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        hrsOfOpsErrorsAlarm.addAlarmAction(new cloudwatch_actions.SnsAction(devTopic));
+        const memberLookupErrorsAlarm = memberLookupLambdaErrorsMetric.createAlarm(this, `MemberLookupErrorsAlarm-${props.envName}`, {
+            alarmName: `MiniConnect-MemberLookupErrors-${props.envName}`,
+            alarmDescription: "MemberLookup Lambda is erroring — member data will not surface to agents.",
+            threshold: 1,
+            evaluationPeriods: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        memberLookupErrorsAlarm.addAlarmAction(new cloudwatch_actions.SnsAction(devTopic));
         dashboard.addWidgets(new cloudwatch.GraphWidget({
             title: "HrsOfOps Lambda Errors",
             left: [hrsOfOpsLambdaErrorsMetric],
@@ -89,5 +112,9 @@ export class MonitoringDevStack extends cdk.Stack {
             left: [dynamoDbWriteLatencyMetric],
             width: 12,
         }));
+        new cdk.CfnOutput(this, `DevAlarmTopicArn-${props.envName}`, {
+            value: devTopic.topicArn,
+            description: "SNS topic ARN for dev alarms — subscribe to receive notifications",
+        });
     }
 }

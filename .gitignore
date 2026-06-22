@@ -4,3 +4,4 @@ cdk.out/
 *.tsbuildinfo
 CLAUDE.md
 docs/
+scripts/seed-customer-profiles.ts

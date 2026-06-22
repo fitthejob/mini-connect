@@ -22,6 +22,7 @@ export class ConnectInstanceStack extends cdk.Stack {
         attributes: {
           inboundCalls: true,
           outboundCalls: true,
+          contactflowLogs: true,
         },
       },
     );

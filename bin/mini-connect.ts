@@ -11,6 +11,7 @@ import { DynamoDbStack } from "../lib/dynamodb-stack.js";
 import { mainInboundBotCatalog } from "../src/bots/main-inbound-flow/catalog.js";
 import { MonitoringOpsStack } from "../lib/observability/monitoring-ops-stack.js";
 import { MonitoringDevStack } from "../lib/observability/monitoring-dev-stack.js";
+import { CustomerProfilesStack } from "../lib/customer-profiles-stack.js";
 import { AwsSolutionsChecks } from "cdk-nag";
 
 const app = new cdk.App();
@@ -70,6 +71,13 @@ const lambdaStack = new LambdaStack(app, "MiniConnect-Lambda", {
   envName: env,
   s3Stack,
   dynamoDbStack,
+  kmsStack,
+});
+
+new CustomerProfilesStack(app, "MiniConnect-CustomerProfiles", {
+  env: awsEnv,
+  envName: env,
+  instanceArn: connectInstanceStack.instanceArn,
   kmsStack,
 });
 

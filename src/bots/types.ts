@@ -38,10 +38,16 @@ export interface BotIntent {
   slots?: BotSlot[];
 }
 
+export interface LocaleVoiceSettings {
+  voiceId: string;
+  engine: "neural" | "standard" | "long-form";
+}
+
 export interface BotCatalog {
   name: string;
   locales: string[];
   nluConfidenceThreshold: number;
   intents: BotIntent[];
   slotTypes?: BotSlotType[];
+  voiceSettings?: Record<string, LocaleVoiceSettings>;
 }

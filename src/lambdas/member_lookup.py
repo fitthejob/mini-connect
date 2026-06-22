@@ -2,7 +2,6 @@ import os
 from typing import Any
 
 import boto3
-from boto3.dynamodb.conditions import Key
 
 TABLE_NAME = os.environ["MEMBER_TABLE_NAME"]
 
@@ -16,12 +15,10 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
 
     if not member_id:
         return {"found": "false", "errorMessage": "memberId not provided"}
-    response = table.query(KeyConditionExpression=Key("memberId").eq(member_id))
-    items = response.get("Items", [])
-    if not items:
+    response = table.get_item(Key={"memberId": member_id})
+    member = response.get("Item")
+    if not member:
         return {"found": "false", "errorMessage": "Member not found"}
-
-    member = items[0]
 
     return {
         "found": "true",
