@@ -1,13 +1,12 @@
 import * as cdk from "aws-cdk-lib";
-import * as connect from "aws-cdk-lib/aws-connect";
 import * as customerprofiles from "aws-cdk-lib/aws-customerprofiles";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 import { KmsStack } from "./kms-stack.js";
 
 interface CustomerProfilesStackProps extends cdk.StackProps {
   envName: string;
-  instanceArn: string;
   kmsStack: KmsStack;
 }
 
@@ -24,6 +23,17 @@ export class CustomerProfilesStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // Required so Customer Profiles can publish failed ingestion events to the DLQ
+    dlq.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: "CustomerProfilesSendMessage",
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.ServicePrincipal("profile.amazonaws.com")],
+        actions: ["sqs:SendMessage"],
+        resources: [dlq.queueArn],
+      }),
+    );
+
     this.domainName = `mini-connect-${props.envName}`;
 
     new customerprofiles.CfnDomain(
@@ -37,22 +47,21 @@ export class CustomerProfilesStack extends cdk.Stack {
       },
     );
 
-    // CfnDomain exposes no ARN GetAtt — construct it from known parts
+    // NOTE: The domain-to-instance association cannot be done via CloudFormation
+    // or the API — it must be performed manually in the Connect console using the
+    // KMS key and DLQ provisioned by this stack. See docs/RUNBOOK.md → Customer Profiles.
+    // AWS platform constraint documented in the CreateDomain API reference.
+
     const domainArn = `arn:aws:profile:${this.region}:${this.account}:domains/${this.domainName}`;
 
-    new connect.CfnIntegrationAssociation(
-      this,
-      `CustomerProfilesIntegration-${props.envName}`,
-      {
-        instanceId: props.instanceArn,
-        integrationType: "CUSTOMER_PROFILES",
-        integrationArn: domainArn,
-      },
-    );
+    new cdk.CfnOutput(this, `CustomerProfilesDLQUrl-${props.envName}`, {
+      value: dlq.queueUrl,
+      description: "Customer Profiles DLQ URL — select this queue when enabling Customer Profiles in the Connect console",
+    });
 
     new cdk.CfnOutput(this, `CustomerProfilesDomainName-${props.envName}`, {
       value: this.domainName,
-      description: "Customer Profiles domain name",
+      description: "Customer Profiles domain name — associate with Connect instance manually in console",
     });
 
     new cdk.CfnOutput(this, `CustomerProfilesDomainArn-${props.envName}`, {

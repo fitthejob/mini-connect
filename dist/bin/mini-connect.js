@@ -61,7 +61,6 @@ const lambdaStack = new LambdaStack(app, "MiniConnect-Lambda", {
 new CustomerProfilesStack(app, "MiniConnect-CustomerProfiles", {
     env: awsEnv,
     envName: env,
-    instanceArn: connectInstanceStack.instanceArn,
     kmsStack,
 });
 const lexStack = new LexStack(app, "MiniConnect-Lex", {
