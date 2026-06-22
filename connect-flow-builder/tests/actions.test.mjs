@@ -860,10 +860,7 @@ test("GetCustomerProfileActionBuilder emits the expected identifier-based lookup
       IdentifierName: "CustomerId",
       IdentifierValue: "$.Attributes.customerId",
     },
-    ProfileResponseData: {
-      ProfileId: true,
-      FirstName: true,
-    },
+    ProfileResponseData: ["ProfileId", "FirstName"],
   });
 });
 

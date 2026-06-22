@@ -40,8 +40,10 @@ export class GetCustomerProfileActionBuilder extends BaseActionBuilder {
     }
     responseField(key) {
         const data = this.getParameter("ProfileResponseData")
-            ?? {};
-        data[key] = true;
+            ?? [];
+        if (!data.includes(key)) {
+            data.push(key);
+        }
         return this.setParameter("ProfileResponseData", data);
     }
 }

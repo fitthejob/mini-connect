@@ -1434,13 +1434,17 @@ function validateProfileResponseData(action) {
     if (!("ProfileResponseData" in action.parameters)) {
         return;
     }
-    const responseData = requireObjectParameter(action, "ProfileResponseData");
-    if (Object.keys(responseData).length === 0) {
+    const responseData = action.parameters["ProfileResponseData"];
+    // Connect flow API expects ProfileResponseData as an array of field name strings
+    if (!Array.isArray(responseData)) {
+        throw new Error(`Action "${action.id}" of type "${action.type}" requires ProfileResponseData to be an array of field name strings.`);
+    }
+    if (responseData.length === 0) {
         throw new Error(`Action "${action.id}" of type "${action.type}" requires ProfileResponseData to contain at least one entry when provided.`);
     }
-    for (const [key, value] of Object.entries(responseData)) {
-        if (key.trim().length === 0 || typeof value !== "boolean") {
-            throw new Error(`Action "${action.id}" of type "${action.type}" requires every ProfileResponseData entry to use a non-empty key and boolean value.`);
+    for (const entry of responseData) {
+        if (typeof entry !== "string" || entry.trim().length === 0) {
+            throw new Error(`Action "${action.id}" of type "${action.type}" requires every ProfileResponseData entry to be a non-empty string.`);
         }
     }
 }
