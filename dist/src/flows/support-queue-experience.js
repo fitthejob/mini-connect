@@ -1,4 +1,4 @@
-import { CompareActionBuilder, DisconnectParticipantActionBuilder, FlowBuilder, MessageParticipantActionBuilder, UpdateContactTextToSpeechVoiceActionBuilder, equalsCondition, } from "connect-flow-builder";
+import { CompareActionBuilder, FlowBuilder, MessageParticipantIterativelyActionBuilder, UpdateContactTextToSpeechVoiceActionBuilder, equalsCondition, } from "connect-flow-builder";
 export const supportQueueExperienceSpec = {
     key: "supportQueueExperience",
     name: "SupportQueueExperience",
@@ -6,7 +6,7 @@ export const supportQueueExperienceSpec = {
     filename: "support-queue-experience.json",
     description: "Customer queue flow for the support queue experience.",
     build: () => {
-        // Voice is not inherited from the inbound flow — must be set again here
+        // Voice is not inherited from the inbound flow — must be re-set here
         const checkLanguage = new CompareActionBuilder("CheckLanguage")
             .comparisonValue("$.Attributes.preferredLanguage")
             .when(equalsCondition("es"), "SetVoiceSpanish")
@@ -15,29 +15,26 @@ export const supportQueueExperienceSpec = {
         const setVoiceEnglish = new UpdateContactTextToSpeechVoiceActionBuilder("SetVoiceEnglish")
             .voice("Joanna")
             .engine("neural")
-            .next("QueuedPromptEnglish")
+            .next("HoldLoopEnglish")
             .build();
         const setVoiceSpanish = new UpdateContactTextToSpeechVoiceActionBuilder("SetVoiceSpanish")
             .voice("Lupe")
             .engine("neural")
-            .next("QueuedPromptSpanish")
+            .next("HoldLoopSpanish")
             .build();
-        const queuedPromptEnglish = new MessageParticipantActionBuilder("QueuedPromptEnglish")
-            .text("Please hold while we connect you to the next available agent.")
-            .next("Disconnect")
+        // MessageParticipantIteratively loops the hold message until an agent answers
+        const holdLoopEnglish = new MessageParticipantIterativelyActionBuilder("HoldLoopEnglish")
+            .addText("Please hold while we connect you to the next available agent.")
             .build();
-        const queuedPromptSpanish = new MessageParticipantActionBuilder("QueuedPromptSpanish")
-            .text("Por favor espere mientras lo conectamos con el siguiente agente disponible.")
-            .next("Disconnect")
+        const holdLoopSpanish = new MessageParticipantIterativelyActionBuilder("HoldLoopSpanish")
+            .addText("Por favor espere mientras lo conectamos con el siguiente agente disponible.")
             .build();
-        const disconnect = new DisconnectParticipantActionBuilder("Disconnect").build();
         return new FlowBuilder("SupportQueueExperience")
             .startWith(checkLanguage)
             .add(setVoiceEnglish)
             .add(setVoiceSpanish)
-            .add(queuedPromptEnglish)
-            .add(queuedPromptSpanish)
-            .add(disconnect)
+            .add(holdLoopEnglish)
+            .add(holdLoopSpanish)
             .build();
     },
 };
