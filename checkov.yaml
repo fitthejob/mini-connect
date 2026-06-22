@@ -14,3 +14,13 @@ skip-check:
                  # concern, not a security requirement. Setting it on a demo system causes
                  # account-level concurrency conflicts. Should be configured per environment
                  # when promoting to production.
+
+  - CKV_AWS_111  # LogRetention custom resource IAM policy: CDK auto-generates this Lambda and
+                 # its IAM policy when logRetention is set on a Lambda function. The policy
+                 # grants logs:PutRetentionPolicy and logs:DeleteRetentionPolicy on Resource: *.
+                 # This is a CDK internal implementation detail — the resource and policy are
+                 # not authored by this repo and cannot be scoped further without forking CDK.
+
+  - CKV_AWS_116  # LogRetention custom resource DLQ: same CDK-generated Lambda as above.
+                 # CDK does not expose a DLQ configuration on the LogRetention custom resource.
+                 # This is an internal CDK construct limitation, not a gap in application code.

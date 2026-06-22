@@ -5,3 +5,4 @@ cdk.out/
 CLAUDE.md
 docs/
 scripts/seed-customer-profiles.ts
+dist/scripts/seed-customer-profiles.js
