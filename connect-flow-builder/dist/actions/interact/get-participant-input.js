@@ -3,6 +3,7 @@ export class GetParticipantInputActionBuilder extends BaseActionBuilder {
     constructor(id) {
         super(id, "GetParticipantInput");
         this.setParameter("InputTimeLimitSeconds", "5");
+        this.setParameter("StoreInput", "False");
     }
     text(value) {
         return this.setParameter("Text", value);

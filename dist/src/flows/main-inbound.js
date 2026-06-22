@@ -197,6 +197,7 @@ export const mainInboundSpec = {
             .when(equalsCondition("1"), "SetSupportQueueFlow")
             .when(equalsCondition("2"), "Disconnect")
             .onError("Disconnect", "InputTimeLimitExceeded")
+            .onError("Disconnect", "NoMatchingCondition")
             .onError("Disconnect")
             .build();
         const offerTransferSpanish = new GetParticipantInputActionBuilder("OfferTransferSpanish")
@@ -205,6 +206,7 @@ export const mainInboundSpec = {
             .when(equalsCondition("1"), "SetSupportQueueFlow")
             .when(equalsCondition("2"), "Disconnect")
             .onError("Disconnect", "InputTimeLimitExceeded")
+            .onError("Disconnect", "NoMatchingCondition")
             .onError("Disconnect")
             .build();
         const setIntentBilling = new UpdateContactAttributesActionBuilder("SetIntentBilling")

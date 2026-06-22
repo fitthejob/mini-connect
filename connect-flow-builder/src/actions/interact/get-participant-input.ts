@@ -4,6 +4,7 @@ export class GetParticipantInputActionBuilder extends BaseActionBuilder<GetParti
   constructor(id: string) {
     super(id, "GetParticipantInput");
     this.setParameter("InputTimeLimitSeconds", "5");
+    this.setParameter("StoreInput", "False");
   }
 
   text(value: string): this {

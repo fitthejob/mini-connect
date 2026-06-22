@@ -277,6 +277,7 @@ export const mainInboundSpec: FlowSpec = {
       .when(equalsCondition("1"), "SetSupportQueueFlow")
       .when(equalsCondition("2"), "Disconnect")
       .onError("Disconnect", "InputTimeLimitExceeded")
+      .onError("Disconnect", "NoMatchingCondition")
       .onError("Disconnect")
       .build();
 
@@ -286,6 +287,7 @@ export const mainInboundSpec: FlowSpec = {
       .when(equalsCondition("1"), "SetSupportQueueFlow")
       .when(equalsCondition("2"), "Disconnect")
       .onError("Disconnect", "InputTimeLimitExceeded")
+      .onError("Disconnect", "NoMatchingCondition")
       .onError("Disconnect")
       .build();
 

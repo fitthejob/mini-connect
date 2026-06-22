@@ -607,8 +607,12 @@ function validateGetParticipantInputAction(action: FlowAction): void {
     return;
   }
 
-  // Pure DTMF mode: has InputTimeLimitSeconds but no LexV2Bot
+  // Pure DTMF mode: has InputTimeLimitSeconds but no LexV2Bot.
+  // Connect requires NoMatchingCondition when the block has conditional transitions.
   if (isDtmfMode) {
+    if ((action.transitions?.conditions?.length ?? 0) > 0) {
+      requireErrorTypes(action, ["NoMatchingCondition"]);
+    }
     return;
   }
 

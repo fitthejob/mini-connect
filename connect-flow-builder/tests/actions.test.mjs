@@ -1232,6 +1232,7 @@ test("GetParticipantInputActionBuilder emits the expected Lex-backed input block
   assert.equal(action.type, "GetParticipantInput");
   assert.deepEqual(action.parameters, {
     InputTimeLimitSeconds: "5",
+    StoreInput: "False",
     Text: "How can we help?",
     LexV2Bot: "arn:aws:lex:example",
   });
