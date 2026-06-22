@@ -82,6 +82,62 @@ export const mainInboundSpec = {
             .build();
         const greeting = new MessageParticipantActionBuilder("Greeting")
             .text("Welcome to Mini Connect.")
+            .next("SetIntentPromptLanguage")
+            .build();
+        // Branch on preferredLanguage to select the correct Lex locale for intent capture.
+        // Lex locale must be set statically per block — it cannot be passed dynamically.
+        const setIntentPromptLanguage = new CompareActionBuilder("SetIntentPromptLanguage")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "IntentPromptSpanish")
+            .onError("IntentPromptEnglish", "NoMatchingCondition")
+            .build();
+        const intentBranches = (nextOnNoMatch) => (builder) => builder
+            .whenIntentEquals("ClaimsStatusIntent", "SetIntentClaims")
+            .whenIntentEquals("BenefitsInquiryIntent", "SetIntentBenefits")
+            .whenIntentEquals("PriorAuthorizationIntent", "SetIntentPriorAuth")
+            .whenIntentEquals("ProviderLookupIntent", "SetIntentProviderLookup")
+            .whenIntentEquals("PrescriptionIntent", "SetIntentPrescription")
+            .whenIntentEquals("EligibilityIntent", "SetIntentEligibility")
+            .whenIntentEquals("BillingIntent", "SetIntentBilling")
+            .onInputTimeLimitExceeded(nextOnNoMatch)
+            .onNoMatchingCondition(nextOnNoMatch);
+        const intentPromptEnglish = intentBranches("SetSupportQueueFlow")(new ConnectParticipantWithLexBotActionBuilder("IntentPromptEnglish")
+            .text("How can I help you today? You can say things like: check my claim status, benefits question, prior authorization, find a provider, prescription help, check eligibility, or billing question.")
+            .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
+            .sessionAttribute("x-amz-lex:locale-id", "en_US")).build();
+        const intentPromptSpanish = intentBranches("SetSupportQueueFlow")(new ConnectParticipantWithLexBotActionBuilder("IntentPromptSpanish")
+            .text("¿Cómo puedo ayudarle hoy? Puede decir: estado de reclamación, pregunta sobre beneficios, autorización previa, buscar proveedor, ayuda con receta, verificar elegibilidad, o pregunta de facturación.")
+            .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
+            .sessionAttribute("x-amz-lex:locale-id", "es_US")).build();
+        // Store call reason as contact attribute so agents see it on their screen.
+        // All intents currently route to the same support queue — split into dedicated
+        // queues when additional queues are provisioned.
+        const setIntentClaims = new UpdateContactAttributesActionBuilder("SetIntentClaims")
+            .attribute("callReason", "claims_status")
+            .next("SetSupportQueueFlow")
+            .build();
+        const setIntentBenefits = new UpdateContactAttributesActionBuilder("SetIntentBenefits")
+            .attribute("callReason", "benefits_inquiry")
+            .next("SetSupportQueueFlow")
+            .build();
+        const setIntentPriorAuth = new UpdateContactAttributesActionBuilder("SetIntentPriorAuth")
+            .attribute("callReason", "prior_authorization")
+            .next("SetSupportQueueFlow")
+            .build();
+        const setIntentProviderLookup = new UpdateContactAttributesActionBuilder("SetIntentProviderLookup")
+            .attribute("callReason", "provider_lookup")
+            .next("SetSupportQueueFlow")
+            .build();
+        const setIntentPrescription = new UpdateContactAttributesActionBuilder("SetIntentPrescription")
+            .attribute("callReason", "prescription")
+            .next("SetSupportQueueFlow")
+            .build();
+        const setIntentEligibility = new UpdateContactAttributesActionBuilder("SetIntentEligibility")
+            .attribute("callReason", "eligibility")
+            .next("SetSupportQueueFlow")
+            .build();
+        const setIntentBilling = new UpdateContactAttributesActionBuilder("SetIntentBilling")
+            .attribute("callReason", "billing")
             .next("SetSupportQueueFlow")
             .build();
         const setSupportQueueFlow = new SetCustomerQueueFlowActionBuilder("SetSupportQueueFlow")
@@ -114,6 +170,16 @@ export const mainInboundSpec = {
             .add(closedMessageSpanish)
             .add(lookupByPhone)
             .add(greeting)
+            .add(setIntentPromptLanguage)
+            .add(intentPromptEnglish)
+            .add(intentPromptSpanish)
+            .add(setIntentClaims)
+            .add(setIntentBenefits)
+            .add(setIntentPriorAuth)
+            .add(setIntentProviderLookup)
+            .add(setIntentPrescription)
+            .add(setIntentEligibility)
+            .add(setIntentBilling)
             .add(setSupportQueueFlow)
             .add(setWorkingQueue)
             .add(transfer)
