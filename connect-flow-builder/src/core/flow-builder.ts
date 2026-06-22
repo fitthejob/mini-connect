@@ -89,26 +89,43 @@ export class BuiltFlow {
   }
 
   private toConnectAction(action: FlowAction): ConnectFlowAction {
+    const transitions = action.transitions;
+    if (!transitions) {
+      return {
+        Identifier: action.id,
+        Type: action.type,
+        Parameters: action.parameters,
+        Transitions: undefined,
+      };
+    }
+
+    // Connect requires NextAction on every Transitions object even when the
+    // action type doesn't support a default next (e.g. Compare). Fall back to
+    // the NoMatchingCondition error target so the field is always populated.
+    const nextAction =
+      transitions.nextAction ??
+      transitions.errors?.find((e) => e.errorType === "NoMatchingCondition")?.nextAction ??
+      transitions.errors?.[0]?.nextAction ??
+      transitions.conditions?.[0]?.nextAction;
+
     return {
       Identifier: action.id,
       Type: action.type,
       Parameters: action.parameters,
-      Transitions: action.transitions
-        ? {
-            NextAction: action.transitions.nextAction,
-            Conditions: action.transitions.conditions?.map((condition) => ({
-              NextAction: condition.nextAction,
-              Condition: {
-                Operator: condition.condition.operator,
-                Operands: condition.condition.operands,
-              },
-            })),
-            Errors: action.transitions.errors?.map((error) => ({
-              NextAction: error.nextAction,
-              ErrorType: error.errorType,
-            })),
-          }
-        : undefined,
+      Transitions: {
+        NextAction: nextAction,
+        Conditions: transitions.conditions?.map((condition) => ({
+          NextAction: condition.nextAction,
+          Condition: {
+            Operator: condition.condition.operator,
+            Operands: condition.condition.operands,
+          },
+        })),
+        Errors: transitions.errors?.map((error) => ({
+          NextAction: error.nextAction,
+          ErrorType: error.errorType,
+        })),
+      },
     };
   }
 }
