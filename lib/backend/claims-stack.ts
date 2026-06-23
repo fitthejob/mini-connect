@@ -44,7 +44,10 @@ export class ClaimsStack extends cdk.Stack {
           ),
         ),
         timeout: cdk.Duration.seconds(15),
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `ClaimsLookupLogGroup-${props.envName}`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
         environment: {
           CLAIMS_TABLE_NAME: props.backendDataStack.claimsTable.tableName,
         },

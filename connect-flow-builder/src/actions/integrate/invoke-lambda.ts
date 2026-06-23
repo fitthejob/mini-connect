@@ -13,4 +13,5 @@ export class InvokeLambdaFunctionActionBuilder extends BaseActionBuilder<InvokeL
   timeLimitSeconds(value: number): this {
     return this.setParameter("InvocationTimeLimitSeconds", String(value));
   }
+
 }

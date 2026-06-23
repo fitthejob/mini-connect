@@ -19,7 +19,10 @@ export class ProvidersStack extends cdk.Stack {
             handler: "provider_lookup.handler",
             code: lambda.Code.fromBucket(props.s3Stack.lambdaArtifactBucket, "provider_lookup.zip", ssm.StringParameter.valueFromLookup(this, `/mini-connect/${props.envName}/lambdas/provider_lookup/object_version`)),
             timeout: cdk.Duration.seconds(15),
-            logRetention: logs.RetentionDays.ONE_MONTH,
+            logGroup: new logs.LogGroup(this, `ProviderLookupLogGroup-${props.envName}`, {
+                retention: logs.RetentionDays.ONE_MONTH,
+                removalPolicy: cdk.RemovalPolicy.DESTROY,
+            }),
             environment: {
                 PROVIDERS_TABLE_NAME: props.backendDataStack.providersTable.tableName,
             },

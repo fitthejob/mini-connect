@@ -25,6 +25,7 @@ export {
   supportedActionTypes,
 } from "./registry.js";
 export type {
+  FlowActionMetadataEntry,
   AuthenticateParticipantCognitoConfiguration,
   AuthenticateParticipantCustomerProfilesConfiguration,
   CheckVoiceIdOption,

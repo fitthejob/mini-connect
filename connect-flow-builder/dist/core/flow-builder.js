@@ -1,6 +1,6 @@
 import { getActionDefinition } from "./registry.js";
 import { validateFlowDefinition } from "./validators.js";
-import { computeLayout } from "./layout.js";
+import { computeLayout, COL_SPACING } from "./layout.js";
 export class FlowBuilder {
     name;
     actions = new Map();
@@ -56,16 +56,24 @@ export class BuiltFlow {
     }
     toConnectDefinition() {
         const positions = computeLayout(this.definition.startAction, this.definition.actions);
-        const uiPositions = {};
+        const actionMetadata = {};
         for (const [id, pos] of positions) {
-            uiPositions[id] = pos;
+            actionMetadata[id] = { position: pos, isFriendlyName: true };
         }
+        const startPos = positions.get(this.definition.startAction);
+        const entryPointPosition = startPos
+            ? { x: startPos.x - COL_SPACING, y: startPos.y }
+            : this.definition.metadata?.entryPointPosition;
+        const metadata = {
+            ...this.definition.metadata,
+            entryPointPosition,
+            ActionMetadata: actionMetadata,
+        };
         return {
             Version: this.definition.version,
             StartAction: this.definition.startAction,
-            Metadata: this.definition.metadata,
+            Metadata: metadata,
             Actions: this.definition.actions.map((action) => this.toConnectAction(action)),
-            UIPositions: uiPositions,
         };
     }
     toJsonString(pretty = true) {

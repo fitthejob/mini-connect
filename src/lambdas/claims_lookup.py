@@ -11,9 +11,9 @@ table = dynamodb.Table(TABLE_NAME)
 
 
 def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
-    params = event.get("Details", {}).get("Parameters", {})
-    claim_id = params.get("claimId")
-    member_id = params.get("memberId")
+    attrs = event.get("Details", {}).get("ContactData", {}).get("Attributes", {})
+    claim_id = attrs.get("slotClaimNumber")
+    member_id = attrs.get("memberId")
 
     if not claim_id or not member_id:
         return {"found": "false", "errorMessage": "claimId and memberId are required"}

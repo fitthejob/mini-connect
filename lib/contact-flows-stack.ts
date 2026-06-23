@@ -137,6 +137,47 @@ export class ContactFlowsStack extends cdk.Stack {
 
     mainInboundFlow.node.addDependency(supportQueueExperienceFlow);
 
+    // Minimal stub flows used by validate-flows.ts to syntax-check rendered
+    // flow JSON against the Connect API before a real deploy. They are never
+    // attached to a phone number or queue — Connect just validates the content.
+    const sandboxInboundContent = JSON.stringify({
+      Version: "2019-10-30",
+      StartAction: "end",
+      Actions: [{ Identifier: "end", Type: "DisconnectParticipant", Parameters: {}, Transitions: {} }],
+    });
+
+    const sandboxQueueContent = JSON.stringify({
+      Version: "2019-10-30",
+      StartAction: "end",
+      Actions: [{ Identifier: "end", Type: "DisconnectParticipant", Parameters: {}, Transitions: {} }],
+    });
+
+    const validationSandboxInbound = new connect.CfnContactFlow(
+      this,
+      "ValidationSandboxInbound",
+      {
+        instanceArn: props.instanceArn,
+        name: "ValidationSandboxInbound",
+        type: "CONTACT_FLOW",
+        description: "Validation-only sandbox — not used for routing.",
+        state: "ACTIVE",
+        content: sandboxInboundContent,
+      },
+    );
+
+    const validationSandboxQueue = new connect.CfnContactFlow(
+      this,
+      "ValidationSandboxQueue",
+      {
+        instanceArn: props.instanceArn,
+        name: "ValidationSandboxQueue",
+        type: "CUSTOMER_QUEUE",
+        description: "Validation-only sandbox — not used for routing.",
+        state: "ACTIVE",
+        content: sandboxQueueContent,
+      },
+    );
+
     new cdk.CfnOutput(this, `ConnectInstanceArnInput-${props.envName}`, {
       value: props.instanceArn,
     });
@@ -151,6 +192,14 @@ export class ContactFlowsStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, `MainInboundFlowArn-${props.envName}`, {
       value: mainInboundFlow.attrContactFlowArn,
+    });
+
+    new cdk.CfnOutput(this, `ValidationSandboxInboundArn-${props.envName}`, {
+      value: validationSandboxInbound.attrContactFlowArn,
+    });
+
+    new cdk.CfnOutput(this, `ValidationSandboxQueueArn-${props.envName}`, {
+      value: validationSandboxQueue.attrContactFlowArn,
     });
   }
 }

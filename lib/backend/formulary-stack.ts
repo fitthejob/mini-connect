@@ -44,7 +44,10 @@ export class FormularyStack extends cdk.Stack {
           ),
         ),
         timeout: cdk.Duration.seconds(15),
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `FormularyLookupLogGroup-${props.envName}`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
         environment: {
           FORMULARY_TABLE_NAME: props.backendDataStack.formularyTable.tableName,
         },

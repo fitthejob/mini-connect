@@ -44,7 +44,10 @@ export class BillingStack extends cdk.Stack {
           ),
         ),
         timeout: cdk.Duration.seconds(15),
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `BillingLookupLogGroup-${props.envName}`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
         environment: {
           BILLING_TABLE_NAME: props.backendDataStack.billingTable.tableName,
         },

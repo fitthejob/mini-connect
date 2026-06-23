@@ -327,8 +327,15 @@ export interface FlowAction {
   transitions?: FlowTransitions;
 }
 
+export interface FlowActionMetadataEntry {
+  position?: { x: number; y: number };
+  isFriendlyName?: boolean;
+  [key: string]: unknown;
+}
+
 export interface FlowMetadata {
   entryPointPosition?: { x: number; y: number };
+  ActionMetadata?: Record<string, FlowActionMetadataEntry>;
   annotations?: Array<{ name: string; value: string }>;
 }
 
@@ -369,5 +376,4 @@ export interface ConnectFlowDefinition {
   StartAction: string;
   Actions: ConnectFlowAction[];
   Metadata?: FlowMetadata;
-  UIPositions?: Record<string, { x: number; y: number }>;
 }

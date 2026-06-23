@@ -5,10 +5,6 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 TABLE_NAME = os.environ["PROVIDERS_TABLE_NAME"]
-PLAN_ID_PARAM = "planId"
-SPECIALTY_PARAM = "specialty"
-ZIP_CODE_PARAM = "zipCode"
-PROVIDER_NAME_PARAM = "providerName"
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
@@ -19,16 +15,15 @@ def normalize(value: str) -> str:
 
 
 def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
-    params = event.get("Details", {}).get("Parameters", {})
-    plan_id = params.get(PLAN_ID_PARAM)
-    specialty = params.get(SPECIALTY_PARAM)
-    zip_code = params.get(ZIP_CODE_PARAM)
-    provider_name = params.get(PROVIDER_NAME_PARAM)
+    attrs = event.get("Details", {}).get("ContactData", {}).get("Attributes", {})
+    plan_id = attrs.get("planId")
+    specialty = attrs.get("slotSpecialty")
+    zip_code = attrs.get("slotZipCode")
+    provider_name = attrs.get("slotProviderName")
 
     if not plan_id:
         return {"found": "false", "errorMessage": "planId is required"}
 
-    # Name-based lookup via GSI
     if provider_name:
         response = table.query(
             IndexName="name-index",
@@ -50,7 +45,6 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
             "address": str(provider.get("address", "")),
         }
 
-    # Specialty + zip lookup via GSI
     if specialty and zip_code:
         response = table.query(
             IndexName="specialty-zip-index",

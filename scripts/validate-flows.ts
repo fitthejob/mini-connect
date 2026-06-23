@@ -121,12 +121,22 @@ async function main(): Promise<void> {
     memberLookupArn,
     lexBotAliasArn,
     supportQueueExperienceFlowArn,
+    claimsLookupArn,
+    providerLookupArn,
+    formularyLookupArn,
+    billingLookupArn,
+    procedureLookupArn,
   ] = await Promise.all([
     getStackOutput(cfn, "MiniConnect-Queues", `SupportQueueArn${env}`),
     getStackOutput(cfn, "MiniConnect-Lambda", `HrsOfOpsHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Lambda", `MemberLookupHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Lex", `BotAliasArn${env}`),
     getStackOutput(cfn, "MiniConnect-ContactFlows", `SupportQueueExperienceFlowArn${env}`),
+    getStackOutput(cfn, "MiniConnect-Claims", `ClaimsLookupHandlerArn${env}`),
+    getStackOutput(cfn, "MiniConnect-Providers", `ProviderLookupHandlerArn${env}`),
+    getStackOutput(cfn, "MiniConnect-Formulary", `FormularyLookupHandlerArn${env}`),
+    getStackOutput(cfn, "MiniConnect-Billing", `BillingLookupHandlerArn${env}`),
+    getStackOutput(cfn, "MiniConnect-ProcedureCodes", `ProcedureLookupHandlerArn${env}`),
   ]);
 
   // Render support queue flow first (no bindings needed)
@@ -145,7 +155,15 @@ async function main(): Promise<void> {
   const bindings: FlowBindings = {
     queues: { support: supportQueueArn },
     flowArns: { supportQueueExperience: supportQueueExperienceFlowArn },
-    lambdas: { hrsOfOps: hrsOfOpsArn, memberLookup: memberLookupArn },
+    lambdas: {
+      hrsOfOps: hrsOfOpsArn,
+      memberLookup: memberLookupArn,
+      claimsLookup: claimsLookupArn,
+      providerLookup: providerLookupArn,
+      formularyLookup: formularyLookupArn,
+      billingLookup: billingLookupArn,
+      procedureLookup: procedureLookupArn,
+    },
     lexBotAliases: { mainInbound: lexBotAliasArn },
   };
 

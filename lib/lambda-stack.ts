@@ -44,7 +44,10 @@ export class LambdaStack extends cdk.Stack {
           ),
         ),
         timeout: cdk.Duration.seconds(10),
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `HrsOfOpsLogGroup-${props.envName}`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
         deadLetterQueue: dlq,
       },
     );
@@ -75,7 +78,10 @@ export class LambdaStack extends cdk.Stack {
           ),
         ),
         timeout: cdk.Duration.seconds(15),
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `MemberLookupLogGroup-${props.envName}`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
         environment: {
           MEMBER_TABLE_NAME: props.dynamoDbStack.memberTable.tableName,
         },

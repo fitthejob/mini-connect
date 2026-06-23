@@ -10,9 +10,9 @@ table = dynamodb.Table(TABLE_NAME)
 
 
 def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
-    params = event.get("Details", {}).get("Parameters", {})
-    invoice_id = params.get("invoiceId")
-    member_id = params.get("memberId")
+    attrs = event.get("Details", {}).get("ContactData", {}).get("Attributes", {})
+    invoice_id = attrs.get("slotInvoiceNumber")
+    member_id = attrs.get("memberId")
 
     if not invoice_id or not member_id:
         return {"found": "false", "errorMessage": "invoiceId and memberId are required"}

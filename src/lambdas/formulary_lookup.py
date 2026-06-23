@@ -14,9 +14,9 @@ def normalize(value: str) -> str:
 
 
 def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
-    params = event.get("Details", {}).get("Parameters", {})
-    plan_id = params.get("planId")
-    medication_name = params.get("medicationName")
+    attrs = event.get("Details", {}).get("ContactData", {}).get("Attributes", {})
+    plan_id = attrs.get("planId")
+    medication_name = attrs.get("slotMedicationName")
 
     if not plan_id or not medication_name:
         return {"found": "false", "errorMessage": "planId and medicationName are required"}

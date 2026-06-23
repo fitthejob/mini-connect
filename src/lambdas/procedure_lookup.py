@@ -12,21 +12,19 @@ formulary_table = dynamodb.Table(FORMULARY_TABLE_NAME)
 
 
 def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
-    params = event.get("Details", {}).get("Parameters", {})
-    procedure_code = params.get("procedureCode")
-    plan_id = params.get("planId")
+    attrs = event.get("Details", {}).get("ContactData", {}).get("Attributes", {})
+    procedure_code = attrs.get("slotProcedureCode")
+    plan_id = attrs.get("planId")
 
     if not procedure_code or not plan_id:
         return {"found": "false", "errorMessage": "procedureCode and planId are required"}
 
-    # Step 1 — does the procedure code exist?
     response = procedure_codes_table.get_item(Key={"procedureCode": procedure_code})
     procedure = response.get("Item")
 
     if not procedure:
         return {"found": "false", "errorMessage": f"Procedure code {procedure_code} not found"}
 
-    # Step 2 — is it covered under this plan?
     covered_plans = procedure.get("coveredPlans", [])
     if plan_id not in covered_plans:
         return {

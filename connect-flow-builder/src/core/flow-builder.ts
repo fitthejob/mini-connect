@@ -1,6 +1,6 @@
 import { getActionDefinition } from "./registry.js";
 import { validateFlowDefinition } from "./validators.js";
-import { computeLayout } from "./layout.js";
+import { computeLayout, COL_SPACING } from "./layout.js";
 import type {
   ConnectFlowAction,
   ConnectFlowDefinition,
@@ -79,17 +79,27 @@ export class BuiltFlow {
       this.definition.actions,
     );
 
-    const uiPositions: Record<string, { x: number; y: number }> = {};
+    const actionMetadata: Record<string, { position: { x: number; y: number }; isFriendlyName: boolean }> = {};
     for (const [id, pos] of positions) {
-      uiPositions[id] = pos;
+      actionMetadata[id] = { position: pos, isFriendlyName: true };
     }
+
+    const startPos = positions.get(this.definition.startAction);
+    const entryPointPosition = startPos
+      ? { x: startPos.x - COL_SPACING, y: startPos.y }
+      : this.definition.metadata?.entryPointPosition;
+
+    const metadata: import("./types.js").FlowMetadata = {
+      ...this.definition.metadata,
+      entryPointPosition,
+      ActionMetadata: actionMetadata,
+    };
 
     return {
       Version: this.definition.version,
       StartAction: this.definition.startAction,
-      Metadata: this.definition.metadata,
+      Metadata: metadata,
       Actions: this.definition.actions.map((action) => this.toConnectAction(action)),
-      UIPositions: uiPositions,
     };
   }
 

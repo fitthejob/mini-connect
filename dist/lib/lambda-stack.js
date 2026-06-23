@@ -20,7 +20,10 @@ export class LambdaStack extends cdk.Stack {
             handler: "hrs_of_ops.handler",
             code: lambda.Code.fromBucket(props.s3Stack.lambdaArtifactBucket, "hrs_of_ops.zip", ssm.StringParameter.valueFromLookup(this, `/mini-connect/${props.envName}/lambdas/hrs_of_ops/object_version`)),
             timeout: cdk.Duration.seconds(10),
-            logRetention: logs.RetentionDays.ONE_MONTH,
+            logGroup: new logs.LogGroup(this, `HrsOfOpsLogGroup-${props.envName}`, {
+                retention: logs.RetentionDays.ONE_MONTH,
+                removalPolicy: cdk.RemovalPolicy.DESTROY,
+            }),
             deadLetterQueue: dlq,
         });
         this.hrsOfOpsHandler.grantInvoke(new iam.ServicePrincipal("connect.amazonaws.com", {
@@ -37,7 +40,10 @@ export class LambdaStack extends cdk.Stack {
             handler: "member_lookup.handler",
             code: lambda.Code.fromBucket(props.s3Stack.lambdaArtifactBucket, "member_lookup.zip", ssm.StringParameter.valueFromLookup(this, `/mini-connect/${props.envName}/lambdas/member_lookup/object_version`)),
             timeout: cdk.Duration.seconds(15),
-            logRetention: logs.RetentionDays.ONE_MONTH,
+            logGroup: new logs.LogGroup(this, `MemberLookupLogGroup-${props.envName}`, {
+                retention: logs.RetentionDays.ONE_MONTH,
+                removalPolicy: cdk.RemovalPolicy.DESTROY,
+            }),
             environment: {
                 MEMBER_TABLE_NAME: props.dynamoDbStack.memberTable.tableName,
             },

@@ -19,7 +19,10 @@ export class FormularyStack extends cdk.Stack {
             handler: "formulary_lookup.handler",
             code: lambda.Code.fromBucket(props.s3Stack.lambdaArtifactBucket, "formulary_lookup.zip", ssm.StringParameter.valueFromLookup(this, `/mini-connect/${props.envName}/lambdas/formulary_lookup/object_version`)),
             timeout: cdk.Duration.seconds(15),
-            logRetention: logs.RetentionDays.ONE_MONTH,
+            logGroup: new logs.LogGroup(this, `FormularyLookupLogGroup-${props.envName}`, {
+                retention: logs.RetentionDays.ONE_MONTH,
+                removalPolicy: cdk.RemovalPolicy.DESTROY,
+            }),
             environment: {
                 FORMULARY_TABLE_NAME: props.backendDataStack.formularyTable.tableName,
             },

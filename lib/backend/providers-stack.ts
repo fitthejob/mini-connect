@@ -44,7 +44,10 @@ export class ProvidersStack extends cdk.Stack {
           ),
         ),
         timeout: cdk.Duration.seconds(15),
-        logRetention: logs.RetentionDays.ONE_MONTH,
+        logGroup: new logs.LogGroup(this, `ProviderLookupLogGroup-${props.envName}`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
         environment: {
           PROVIDERS_TABLE_NAME: props.backendDataStack.providersTable.tableName,
         },
