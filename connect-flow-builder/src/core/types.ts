@@ -369,4 +369,5 @@ export interface ConnectFlowDefinition {
   StartAction: string;
   Actions: ConnectFlowAction[];
   Metadata?: FlowMetadata;
+  UIPositions?: Record<string, { x: number; y: number }>;
 }

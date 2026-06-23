@@ -1,5 +1,6 @@
 import { getActionDefinition } from "./registry.js";
 import { validateFlowDefinition } from "./validators.js";
+import { computeLayout } from "./layout.js";
 import type {
   ConnectFlowAction,
   ConnectFlowDefinition,
@@ -73,11 +74,22 @@ export class BuiltFlow {
   }
 
   toConnectDefinition(): ConnectFlowDefinition {
+    const positions = computeLayout(
+      this.definition.startAction,
+      this.definition.actions,
+    );
+
+    const uiPositions: Record<string, { x: number; y: number }> = {};
+    for (const [id, pos] of positions) {
+      uiPositions[id] = pos;
+    }
+
     return {
       Version: this.definition.version,
       StartAction: this.definition.startAction,
       Metadata: this.definition.metadata,
       Actions: this.definition.actions.map((action) => this.toConnectAction(action)),
+      UIPositions: uiPositions,
     };
   }
 

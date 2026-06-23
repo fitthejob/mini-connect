@@ -21,8 +21,8 @@
     "deploy:dynamodb": "cdk deploy MiniConnect-DynamoDB",
     "deploy:monitoring-ops": "cdk deploy MiniConnect-MonitoringOps",
     "deploy:monitoring-dev": "cdk deploy MiniConnect-MonitoringDev",
-    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=dev",
-    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --context env=prod",
+    "deploy:all:dev": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lambda MiniConnect-Claims MiniConnect-Providers MiniConnect-Formulary MiniConnect-Billing MiniConnect-ProcedureCodes MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --require-approval never --context env=dev",
+    "deploy:all:prod": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lambda MiniConnect-Claims MiniConnect-Providers MiniConnect-Formulary MiniConnect-Billing MiniConnect-ProcedureCodes MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --require-approval never --context env=prod",
     "deploy:customer-profiles": "cdk deploy MiniConnect-CustomerProfiles",
     "deploy:backend-data": "cdk deploy MiniConnect-BackendData",
     "deploy:claims": "cdk deploy MiniConnect-Claims",
@@ -34,7 +34,7 @@
     "seed:backend": "tsx ./scripts/seed-backend-data.ts",
     "teardown": "tsx ./scripts/teardown.ts",
     "validate:flows": "tsx ./scripts/validate-flows.ts dev",
-    "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5"
+    "deploy:all": "cdk deploy MiniConnect-Instance MiniConnect-Queues MiniConnect-Kms MiniConnect-DynamoDB MiniConnect-BackendData MiniConnect-S3 MiniConnect-Lambda MiniConnect-Claims MiniConnect-Providers MiniConnect-Formulary MiniConnect-Billing MiniConnect-ProcedureCodes MiniConnect-Lex MiniConnect-CustomerProfiles MiniConnect-ContactFlows MiniConnect-MonitoringOps MiniConnect-MonitoringDev --concurrency 5 --require-approval never"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.203.0",
