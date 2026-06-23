@@ -21,6 +21,7 @@ export class ProvidersStack extends cdk.Stack {
             timeout: cdk.Duration.seconds(15),
             logGroup: new logs.LogGroup(this, `ProviderLookupLogGroup-${props.envName}`, {
                 retention: logs.RetentionDays.ONE_MONTH,
+                encryptionKey: props.kmsStack.memberDataKey,
                 removalPolicy: cdk.RemovalPolicy.DESTROY,
             }),
             environment: {

@@ -22,6 +22,7 @@ export class LambdaStack extends cdk.Stack {
             timeout: cdk.Duration.seconds(10),
             logGroup: new logs.LogGroup(this, `HrsOfOpsLogGroup-${props.envName}`, {
                 retention: logs.RetentionDays.ONE_MONTH,
+                encryptionKey: props.kmsStack.memberDataKey,
                 removalPolicy: cdk.RemovalPolicy.DESTROY,
             }),
             deadLetterQueue: dlq,
@@ -42,6 +43,7 @@ export class LambdaStack extends cdk.Stack {
             timeout: cdk.Duration.seconds(15),
             logGroup: new logs.LogGroup(this, `MemberLookupLogGroup-${props.envName}`, {
                 retention: logs.RetentionDays.ONE_MONTH,
+                encryptionKey: props.kmsStack.memberDataKey,
                 removalPolicy: cdk.RemovalPolicy.DESTROY,
             }),
             environment: {

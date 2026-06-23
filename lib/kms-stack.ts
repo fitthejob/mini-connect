@@ -32,6 +32,24 @@ export class KmsStack extends cdk.Stack {
     this.memberDataKey = new kms.Key(this, `MemberDataKey-${props.envName}`, {
       enableKeyRotation: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      policy: new iam.PolicyDocument({
+        statements: [
+          new iam.PolicyStatement({
+            sid: "AccountRootAccess",
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.AccountRootPrincipal()],
+            actions: ["kms:*"],
+            resources: ["*"],
+          }),
+          new iam.PolicyStatement({
+            sid: "CloudWatchLogsKmsAccess",
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.ServicePrincipal(`logs.${cdk.Stack.of(this).region}.amazonaws.com`)],
+            actions: ["kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey"],
+            resources: ["*"],
+          }),
+        ],
+      }),
     });
     new cdk.CfnOutput(this, `MemberDataKeyArn-${props.envName}`, {
       value: this.memberDataKey.keyArn,

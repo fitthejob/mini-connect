@@ -21,6 +21,7 @@ export class BillingStack extends cdk.Stack {
             timeout: cdk.Duration.seconds(15),
             logGroup: new logs.LogGroup(this, `BillingLookupLogGroup-${props.envName}`, {
                 retention: logs.RetentionDays.ONE_MONTH,
+                encryptionKey: props.kmsStack.memberDataKey,
                 removalPolicy: cdk.RemovalPolicy.DESTROY,
             }),
             environment: {

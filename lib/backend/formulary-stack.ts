@@ -46,6 +46,7 @@ export class FormularyStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(15),
         logGroup: new logs.LogGroup(this, `FormularyLookupLogGroup-${props.envName}`, {
           retention: logs.RetentionDays.ONE_MONTH,
+          encryptionKey: props.kmsStack.memberDataKey,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }),
         environment: {
