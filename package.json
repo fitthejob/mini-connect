@@ -15,6 +15,7 @@
     "deploy:instance": "cdk deploy MiniConnect-Instance --require-approval never",
     "deploy:queues": "cdk deploy MiniConnect-Queues --require-approval never",
     "deploy:flows": "cdk deploy MiniConnect-ContactFlows --exclusively --require-approval never",
+
     "deploy:kms": "cdk deploy MiniConnect-Kms --require-approval never",
     "deploy:s3": "cdk deploy MiniConnect-S3 --require-approval never",
     "deploy:lex": "cdk deploy MiniConnect-Lex --exclusively --require-approval never",

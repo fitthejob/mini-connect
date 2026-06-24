@@ -9,6 +9,7 @@ import {
   InvokeFlowModuleActionBuilder,
   MessageParticipantActionBuilder,
   SetCustomerQueueFlowActionBuilder,
+  ShowViewActionBuilder,
   TransferContactToQueueActionBuilder,
   UpdateContactAttributesActionBuilder,
   UpdateContactTargetQueueActionBuilder,
@@ -344,9 +345,9 @@ export const mainInboundSpec: FlowSpec = {
       .inputTimeLimitSeconds(8)
       .when(equalsCondition("1"), "RouteToQueue")
       .when(equalsCondition("2"), "Disconnect")
-      .onError("Disconnect", "InputTimeLimitExceeded")
-      .onError("Disconnect", "NoMatchingCondition")
-      .onError("Disconnect")
+      .onError("RouteToQueue", "InputTimeLimitExceeded")
+      .onError("RouteToQueue", "NoMatchingCondition")
+      .onError("RouteToQueue")
       .build();
 
     const offerTransferSpanish = new GetParticipantInputActionBuilder("OfferTransferSpanish")
@@ -354,9 +355,9 @@ export const mainInboundSpec: FlowSpec = {
       .inputTimeLimitSeconds(8)
       .when(equalsCondition("1"), "RouteToQueue")
       .when(equalsCondition("2"), "Disconnect")
-      .onError("Disconnect", "InputTimeLimitExceeded")
-      .onError("Disconnect", "NoMatchingCondition")
-      .onError("Disconnect")
+      .onError("RouteToQueue", "InputTimeLimitExceeded")
+      .onError("RouteToQueue", "NoMatchingCondition")
+      .onError("RouteToQueue")
       .build();
 
     // ── Billing ───────────────────────────────────────────────────────────────
@@ -381,17 +382,165 @@ export const mainInboundSpec: FlowSpec = {
       .onError("Disconnect", "NoMatchingCondition")
       .build();
 
-    // Route to the queue matching the caller's intent. All unrecognized paths
-    // (benefits, eligibility, timeout/no-match) land in member-services.
+    // Route to the ShowView screen pop for the caller's intent, then to the
+    // matching queue. All unrecognized paths land in member-services.
     const routeToQueue = new CompareActionBuilder("RouteToQueue")
       .comparisonValue("$.Attributes.callReason")
-      .when(equalsCondition("claims_status"),       "SetClaimsQueueFlow")
-      .when(equalsCondition("billing"),             "SetBillingQueueFlow")
-      .when(equalsCondition("prescription"),        "SetPharmacyQueueFlow")
-      .when(equalsCondition("prior_authorization"), "SetPharmacyQueueFlow")
-      .when(equalsCondition("provider_lookup"),     "SetProviderQueueFlow")
+      .when(equalsCondition("claims_status"),       "ShowClaimsView")
+      .when(equalsCondition("billing"),             "ShowBillingView")
+      .when(equalsCondition("prescription"),        "ShowFormularyView")
+      .when(equalsCondition("prior_authorization"), "ShowPriorAuthView")
+      .when(equalsCondition("provider_lookup"),     "ShowProviderView")
+      .when(equalsCondition("eligibility"),         "ShowEligibilityView")
+      .when(equalsCondition("benefits_inquiry"),    "ShowBenefitsView")
       .onError("SetMemberServicesQueueFlow", "NoMatchingCondition")
       .build();
+
+    // ShowView fires the agent screen pop. On any outcome (action selected or
+    // error), routing continues to the queue setup. InvocationTimeLimitSeconds
+    // is set to 1 so the block doesn't hold the call waiting for agent input.
+    // ShowView fires the agent screen pop using the AWS-managed Detail view.
+    // The Detail view ARN is global: arn:aws:connect:region:aws:view/detail.
+    // ViewData entries map to the Detail view's input schema fields.
+    // On any outcome (action selected or error), routing continues to queue setup.
+    const buildShowView = (
+      id: string,
+      heading: string,
+      intentItems: Array<{ Label: string; Value: string }>,
+      resultItems: Array<{ Label: string; Value: string }>,
+      nextBlock: string,
+    ) =>
+      new ShowViewActionBuilder(id)
+        .viewResource("detail", "$LATEST")
+        .invocationTimeLimitSeconds(2)
+        .viewData("Heading", heading)
+        .viewData("AttributeBar", JSON.stringify([
+          { Label: "Member ID", Value: "$.Attributes.memberId" },
+          { Label: "Plan",      Value: "$.Attributes.planId" },
+          { Label: "Coverage",  Value: "$.Attributes.coverageStatus" },
+          { Label: "Language",  Value: "$.Attributes.preferredLanguage" },
+        ]))
+        .viewData("Sections", JSON.stringify([
+          { Heading: "Caller Intent",  Type: "DataSection", Items: intentItems },
+          { Heading: "Lookup Result",  Type: "DataSection", Items: resultItems },
+        ]))
+        .viewData("Actions", JSON.stringify(["Transfer", "End Call"]))
+        .when(equalsCondition("Transfer"), nextBlock)
+        .when(equalsCondition("End Call"), nextBlock)
+        .onError(nextBlock, "NoMatchingCondition")
+        .onError(nextBlock, "TimeLimitExceeded")
+        .onError(nextBlock)
+        .build();
+
+    const showClaimsView = buildShowView(
+      "ShowClaimsView",
+      "Claims Status",
+      [
+        { Label: "Call Reason",    Value: "$.Attributes.callReason" },
+        { Label: "Claim Number",   Value: "$.Attributes.slotClaimNumber" },
+        { Label: "Date of Service", Value: "$.Attributes.slotDateOfService" },
+      ],
+      [
+        { Label: "Status",          Value: "$.Attributes.externalStatus" },
+        { Label: "Billed Amount",   Value: "$.Attributes.externalBilledAmount" },
+        { Label: "Paid Amount",     Value: "$.Attributes.externalPaidAmount" },
+        { Label: "Denial Reason",   Value: "$.Attributes.externalDenialReason" },
+        { Label: "Date of Service", Value: "$.Attributes.externalDateOfService" },
+      ],
+      "SetClaimsQueueFlow",
+    );
+
+    const showBillingView = buildShowView(
+      "ShowBillingView",
+      "Billing Inquiry",
+      [
+        { Label: "Call Reason",    Value: "$.Attributes.callReason" },
+        { Label: "Invoice Number", Value: "$.Attributes.slotInvoiceNumber" },
+      ],
+      [
+        { Label: "Status",       Value: "$.Attributes.externalStatus" },
+        { Label: "Amount",       Value: "$.Attributes.externalAmount" },
+        { Label: "Date Issued",  Value: "$.Attributes.externalDateIssued" },
+        { Label: "Due Date",     Value: "$.Attributes.externalDueDate" },
+        { Label: "Description",  Value: "$.Attributes.externalDescription" },
+      ],
+      "SetBillingQueueFlow",
+    );
+
+    const showFormularyView = buildShowView(
+      "ShowFormularyView",
+      "Prescription Formulary",
+      [
+        { Label: "Call Reason",     Value: "$.Attributes.callReason" },
+        { Label: "Medication Name", Value: "$.Attributes.slotMedicationName" },
+      ],
+      [
+        { Label: "Medication",          Value: "$.Attributes.externalMedicationName" },
+        { Label: "Covered",             Value: "$.Attributes.externalCovered" },
+        { Label: "Tier",                Value: "$.Attributes.externalTier" },
+        { Label: "Copay",               Value: "$.Attributes.externalCopay" },
+        { Label: "Requires Prior Auth", Value: "$.Attributes.externalRequiresPriorAuth" },
+      ],
+      "SetPharmacyQueueFlow",
+    );
+
+    const showProviderView = buildShowView(
+      "ShowProviderView",
+      "Provider Network Lookup",
+      [
+        { Label: "Call Reason",   Value: "$.Attributes.callReason" },
+        { Label: "Provider Name", Value: "$.Attributes.slotProviderName" },
+        { Label: "Specialty",     Value: "$.Attributes.slotSpecialty" },
+        { Label: "Zip Code",      Value: "$.Attributes.slotZipCode" },
+      ],
+      [
+        { Label: "Name",       Value: "$.Attributes.externalName" },
+        { Label: "Phone",      Value: "$.Attributes.externalPhone" },
+        { Label: "In-Network", Value: "$.Attributes.externalInNetwork" },
+      ],
+      "SetProviderQueueFlow",
+    );
+
+    const showPriorAuthView = buildShowView(
+      "ShowPriorAuthView",
+      "Prior Authorization",
+      [
+        { Label: "Call Reason",    Value: "$.Attributes.callReason" },
+        { Label: "Procedure Code", Value: "$.Attributes.slotProcedureCode" },
+        { Label: "Provider Name",  Value: "$.Attributes.slotProviderName" },
+      ],
+      [
+        { Label: "Covered",             Value: "$.Attributes.externalCovered" },
+        { Label: "Requires Prior Auth", Value: "$.Attributes.externalRequiresPriorAuth" },
+        { Label: "Description",         Value: "$.Attributes.externalDescription" },
+      ],
+      "SetPharmacyQueueFlow",
+    );
+
+    const showEligibilityView = buildShowView(
+      "ShowEligibilityView",
+      "Eligibility Check",
+      [
+        { Label: "Call Reason", Value: "$.Attributes.callReason" },
+      ],
+      [
+        { Label: "Coverage Status", Value: "$.Attributes.coverageStatus" },
+        { Label: "Member ID",       Value: "$.Attributes.memberId" },
+        { Label: "Plan",            Value: "$.Attributes.planId" },
+      ],
+      "SetMemberServicesQueueFlow",
+    );
+
+    const showBenefitsView = buildShowView(
+      "ShowBenefitsView",
+      "Benefits Inquiry",
+      [
+        { Label: "Call Reason",  Value: "$.Attributes.callReason" },
+        { Label: "Service Type", Value: "$.Attributes.slotServiceType" },
+      ],
+      [],
+      "SetMemberServicesQueueFlow",
+    );
 
     // ── Claims ────────────────────────────────────────────────────────────────
     const setClaimsQueueFlow = new SetCustomerQueueFlowActionBuilder("SetClaimsQueueFlow")
@@ -458,9 +607,25 @@ export const mainInboundSpec: FlowSpec = {
       .onError("Disconnect")
       .build();
 
+    const queueAtCapacityLanguageCheck = new CompareActionBuilder("QueueAtCapacityLanguageCheck")
+      .comparisonValue("$.Attributes.preferredLanguage")
+      .when(equalsCondition("es"), "QueueAtCapacitySpanish")
+      .onError("QueueAtCapacityEnglish", "NoMatchingCondition")
+      .build();
+
+    const queueAtCapacityEnglish = new MessageParticipantActionBuilder("QueueAtCapacityEnglish")
+      .text("We're sorry, all of our representatives are currently busy. Please call back during business hours and we will be happy to assist you.")
+      .next("Disconnect")
+      .build();
+
+    const queueAtCapacitySpanish = new MessageParticipantActionBuilder("QueueAtCapacitySpanish")
+      .text("Lo sentimos, todos nuestros representantes están ocupados en este momento. Por favor llame de vuelta durante el horario de atención y con gusto le ayudaremos.")
+      .next("Disconnect")
+      .build();
+
     const transfer = new TransferContactToQueueActionBuilder("TransferToQueue")
       .next("Disconnect")
-      .onError("Disconnect", "QueueAtCapacity")
+      .onError("QueueAtCapacityLanguageCheck", "QueueAtCapacity")
       .onError("Disconnect")
       .build();
 
@@ -515,6 +680,13 @@ export const mainInboundSpec: FlowSpec = {
       .add(invokeBillingModule)
       .add(checkNeedsTransfer)
       .add(routeToQueue)
+      .add(showClaimsView)
+      .add(showBillingView)
+      .add(showFormularyView)
+      .add(showProviderView)
+      .add(showPriorAuthView)
+      .add(showEligibilityView)
+      .add(showBenefitsView)
       .add(setClaimsQueueFlow)
       .add(setClaimsQueue)
       .add(setBillingQueueFlow)
@@ -526,6 +698,9 @@ export const mainInboundSpec: FlowSpec = {
       .add(setMemberServicesQueueFlow)
       .add(setMemberServicesQueue)
       .add(transfer)
+      .add(queueAtCapacityLanguageCheck)
+      .add(queueAtCapacityEnglish)
+      .add(queueAtCapacitySpanish)
       .add(disconnect)
       .build();
   },

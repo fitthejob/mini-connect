@@ -84,11 +84,11 @@ async function main() {
     const instanceId = await getStackOutput(cfn, "MiniConnect-Instance", `ConnectInstanceId${env}`);
     const [supportQueueArn, claimsQueueArn, billingQueueArn, pharmacyQueueArn, providerQueueArn, memberServicesQueueArn, hrsOfOpsArn, memberLookupArn, lexBotAliasArn, claimsLookupArn, providerLookupArn, formularyLookupArn, billingLookupArn, procedureLookupArn,] = await Promise.all([
         getStackOutput(cfn, "MiniConnect-Queues", `SupportQueueArn${env}`),
-        getStackOutput(cfn, "MiniConnect-Queues", `ClaimsQueue-${env}Arn`),
-        getStackOutput(cfn, "MiniConnect-Queues", `BillingQueue-${env}Arn`),
-        getStackOutput(cfn, "MiniConnect-Queues", `PharmacyQueue-${env}Arn`),
-        getStackOutput(cfn, "MiniConnect-Queues", `ProviderQueue-${env}Arn`),
-        getStackOutput(cfn, "MiniConnect-Queues", `MemberServicesQueue-${env}Arn`),
+        getStackOutput(cfn, "MiniConnect-Queues", `ClaimsQueue${env}Arn`),
+        getStackOutput(cfn, "MiniConnect-Queues", `BillingQueue${env}Arn`),
+        getStackOutput(cfn, "MiniConnect-Queues", `PharmacyQueue${env}Arn`),
+        getStackOutput(cfn, "MiniConnect-Queues", `ProviderQueue${env}Arn`),
+        getStackOutput(cfn, "MiniConnect-Queues", `MemberServicesQueue${env}Arn`),
         getStackOutput(cfn, "MiniConnect-Lambda", `HrsOfOpsHandlerArn${env}`),
         getStackOutput(cfn, "MiniConnect-Lambda", `MemberLookupHandlerArn${env}`),
         getStackOutput(cfn, "MiniConnect-Lex", `BotAliasArn${env}`),

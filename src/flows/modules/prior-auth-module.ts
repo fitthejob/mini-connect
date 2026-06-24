@@ -150,9 +150,9 @@ export const priorAuthModuleSpec: FlowSpec = {
       .inputTimeLimitSeconds(8)
       .when(equalsCondition("1"), "SetNeedsTransfer")
       .when(equalsCondition("2"), "EndModule")
-      .onError("EndModule", "InputTimeLimitExceeded")
-      .onError("EndModule", "NoMatchingCondition")
-      .onError("EndModule")
+      .onError("SetNeedsTransfer", "InputTimeLimitExceeded")
+      .onError("SetNeedsTransfer", "NoMatchingCondition")
+      .onError("SetNeedsTransfer")
       .build();
 
     const offerTransferSpanish = new GetParticipantInputActionBuilder("OfferTransferPriorAuthSpanish")
@@ -160,9 +160,9 @@ export const priorAuthModuleSpec: FlowSpec = {
       .inputTimeLimitSeconds(8)
       .when(equalsCondition("1"), "SetNeedsTransfer")
       .when(equalsCondition("2"), "EndModule")
-      .onError("EndModule", "InputTimeLimitExceeded")
-      .onError("EndModule", "NoMatchingCondition")
-      .onError("EndModule")
+      .onError("SetNeedsTransfer", "InputTimeLimitExceeded")
+      .onError("SetNeedsTransfer", "NoMatchingCondition")
+      .onError("SetNeedsTransfer")
       .build();
 
     const setNeedsTransfer = new UpdateContactAttributesActionBuilder("SetNeedsTransfer")
