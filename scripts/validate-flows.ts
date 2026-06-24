@@ -134,10 +134,14 @@ async function main(): Promise<void> {
 
   const [
     supportQueueArn,
+    claimsQueueArn,
+    billingQueueArn,
+    pharmacyQueueArn,
+    providerQueueArn,
+    memberServicesQueueArn,
     hrsOfOpsArn,
     memberLookupArn,
     lexBotAliasArn,
-    supportQueueExperienceFlowArn,
     claimsLookupArn,
     providerLookupArn,
     formularyLookupArn,
@@ -145,10 +149,14 @@ async function main(): Promise<void> {
     procedureLookupArn,
   ] = await Promise.all([
     getStackOutput(cfn, "MiniConnect-Queues", `SupportQueueArn${env}`),
+    getStackOutput(cfn, "MiniConnect-Queues", `ClaimsQueue${env}Arn`),
+    getStackOutput(cfn, "MiniConnect-Queues", `BillingQueue${env}Arn`),
+    getStackOutput(cfn, "MiniConnect-Queues", `PharmacyQueue${env}Arn`),
+    getStackOutput(cfn, "MiniConnect-Queues", `ProviderQueue${env}Arn`),
+    getStackOutput(cfn, "MiniConnect-Queues", `MemberServicesQueue${env}Arn`),
     getStackOutput(cfn, "MiniConnect-Lambda", `HrsOfOpsHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Lambda", `MemberLookupHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Lex", `BotAliasArn${env}`),
-    getStackOutput(cfn, "MiniConnect-ContactFlows", `SupportQueueExperienceFlowArn${env}`),
     getStackOutput(cfn, "MiniConnect-Claims", `ClaimsLookupHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Providers", `ProviderLookupHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Formulary", `FormularyLookupHandlerArn${env}`),
@@ -156,17 +164,20 @@ async function main(): Promise<void> {
     getStackOutput(cfn, "MiniConnect-ProcedureCodes", `ProcedureLookupHandlerArn${env}`),
   ]);
 
-  // Render support queue flow (no bindings needed)
-  const supportOnlyCatalog = flowCatalog.filter(
-    (s) => s.key === "supportQueueExperience",
-  );
-  const supportRender = renderFlowCatalog({
-    catalog: supportOnlyCatalog,
+  // Render all queue experience flows (no bindings needed)
+  const queueFlowKeys = [
+    "supportQueueExperience",
+    "claimsQueueExperience",
+    "billingQueueExperience",
+    "pharmacyQueueExperience",
+    "providerQueueExperience",
+    "memberServicesQueueExperience",
+  ];
+  const queueFlowCatalog = flowCatalog.filter((s) => queueFlowKeys.includes(s.key));
+  const queueFlowRender = renderFlowCatalog({
+    catalog: queueFlowCatalog,
     environment: env,
-  });
-  const supportArtifact = supportRender.artifacts.find(
-    (a) => a.key === "supportQueueExperience",
-  )!;
+  });;
 
   // Render modules with Lambda bindings — push to module sandbox for validation
   const moduleKeys = ["claimsModule", "billingModule", "formularyModule", "providerModule", "priorAuthModule"];
@@ -186,15 +197,26 @@ async function main(): Promise<void> {
     bindings: moduleBindings,
   });
 
-  // Use the deployed module flow IDs from CloudFormation for main inbound binding.
-  // These are resolved at validate time so main inbound renders correctly.
+  // Resolve queue flow ARNs and module IDs from deployed ContactFlows stack.
   const [
+    supportQueueExperienceFlowArn,
+    claimsQueueExperienceFlowArn,
+    billingQueueExperienceFlowArn,
+    pharmacyQueueExperienceFlowArn,
+    providerQueueExperienceFlowArn,
+    memberServicesQueueExperienceFlowArn,
     claimsModuleArn,
     billingModuleArn,
     formularyModuleArn,
     providerModuleArn,
     priorAuthModuleArn,
   ] = await Promise.all([
+    getStackOutput(cfn, "MiniConnect-ContactFlows", `supportQueueExperienceFlowArn${env}`),
+    getStackOutput(cfn, "MiniConnect-ContactFlows", `claimsQueueExperienceFlowArn${env}`),
+    getStackOutput(cfn, "MiniConnect-ContactFlows", `billingQueueExperienceFlowArn${env}`),
+    getStackOutput(cfn, "MiniConnect-ContactFlows", `pharmacyQueueExperienceFlowArn${env}`),
+    getStackOutput(cfn, "MiniConnect-ContactFlows", `providerQueueExperienceFlowArn${env}`),
+    getStackOutput(cfn, "MiniConnect-ContactFlows", `memberServicesQueueExperienceFlowArn${env}`),
     getStackOutput(cfn, "MiniConnect-ContactFlows", `claimsModuleFlowId${env}`).catch(() => "placeholder"),
     getStackOutput(cfn, "MiniConnect-ContactFlows", `billingModuleFlowId${env}`).catch(() => "placeholder"),
     getStackOutput(cfn, "MiniConnect-ContactFlows", `formularyModuleFlowId${env}`).catch(() => "placeholder"),
@@ -204,22 +226,36 @@ async function main(): Promise<void> {
 
   // Render full catalog with real bindings
   const bindings: FlowBindings = {
-    queues: { support: supportQueueArn },
-    flowArns: { supportQueueExperience: supportQueueExperienceFlowArn },
+    queues: {
+      support:        supportQueueArn,
+      claims:         claimsQueueArn,
+      billing:        billingQueueArn,
+      pharmacy:       pharmacyQueueArn,
+      provider:       providerQueueArn,
+      memberServices: memberServicesQueueArn,
+    },
+    flowArns: {
+      supportQueueExperience:        supportQueueExperienceFlowArn,
+      claimsQueueExperience:         claimsQueueExperienceFlowArn,
+      billingQueueExperience:        billingQueueExperienceFlowArn,
+      pharmacyQueueExperience:       pharmacyQueueExperienceFlowArn,
+      providerQueueExperience:       providerQueueExperienceFlowArn,
+      memberServicesQueueExperience: memberServicesQueueExperienceFlowArn,
+    },
     flowIds: {
-      claimsModule: claimsModuleArn,
-      billingModule: billingModuleArn,
+      claimsModule:    claimsModuleArn,
+      billingModule:   billingModuleArn,
       formularyModule: formularyModuleArn,
-      providerModule: providerModuleArn,
+      providerModule:  providerModuleArn,
       priorAuthModule: priorAuthModuleArn,
     },
     lambdas: {
-      hrsOfOps: hrsOfOpsArn,
-      memberLookup: memberLookupArn,
-      claimsLookup: claimsLookupArn,
-      providerLookup: providerLookupArn,
+      hrsOfOps:        hrsOfOpsArn,
+      memberLookup:    memberLookupArn,
+      claimsLookup:    claimsLookupArn,
+      providerLookup:  providerLookupArn,
       formularyLookup: formularyLookupArn,
-      billingLookup: billingLookupArn,
+      billingLookup:   billingLookupArn,
       procedureLookup: procedureLookupArn,
     },
     lexBotAliases: { mainInbound: lexBotAliasArn },
@@ -238,10 +274,10 @@ async function main(): Promise<void> {
   console.log(`Instance: ${instanceId}\n`);
 
   const artifacts = [
-    supportArtifact,
+    ...queueFlowRender.artifacts,
     ...moduleRender.artifacts,
     ...fullRender.artifacts.filter(
-      (a) => a.key !== "supportQueueExperience" && !moduleKeys.includes(a.key),
+      (a) => !queueFlowKeys.includes(a.key) && !moduleKeys.includes(a.key),
     ),
   ];
 

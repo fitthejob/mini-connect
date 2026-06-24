@@ -9,6 +9,11 @@ interface ConnectQueuesStackProps extends cdk.StackProps {
 
 export class ConnectQueuesStack extends cdk.Stack {
   readonly supportQueueArn: string;
+  readonly claimsQueueArn: string;
+  readonly billingQueueArn: string;
+  readonly pharmacyQueueArn: string;
+  readonly providerQueueArn: string;
+  readonly memberServicesQueueArn: string;
 
   constructor(scope: Construct, id: string, props: ConnectQueuesStackProps) {
     super(scope, id, props);
@@ -64,6 +69,24 @@ export class ConnectQueuesStack extends cdk.Stack {
     );
 
     this.supportQueueArn = supportQueue.attrQueueArn;
+
+    const makeQueue = (id: string, name: string, description: string) => {
+      const q = new connect.CfnQueue(this, id, {
+        instanceArn: props.instanceArn,
+        name,
+        description,
+        hoursOfOperationArn: businessHours.attrHoursOfOperationArn,
+        status: "ENABLED",
+      });
+      new cdk.CfnOutput(this, `${id}Arn`, { value: q.attrQueueArn });
+      return q.attrQueueArn;
+    };
+
+    this.claimsQueueArn        = makeQueue(`ClaimsQueue-${props.envName}`,         `Claims-${props.envName}`,         "Claims status inquiries.");
+    this.billingQueueArn       = makeQueue(`BillingQueue-${props.envName}`,         `Billing-${props.envName}`,        "Billing and invoice inquiries.");
+    this.pharmacyQueueArn      = makeQueue(`PharmacyQueue-${props.envName}`,        `Pharmacy-${props.envName}`,       "Prescription and prior authorization inquiries.");
+    this.providerQueueArn      = makeQueue(`ProviderQueue-${props.envName}`,        `Provider-${props.envName}`,       "Provider network lookup inquiries.");
+    this.memberServicesQueueArn = makeQueue(`MemberServicesQueue-${props.envName}`, `MemberServices-${props.envName}`, "Eligibility, benefits, and general member services.");
 
     new cdk.CfnOutput(this, `BusinessHoursArn-${props.envName}`, {
       value: businessHours.attrHoursOfOperationArn,

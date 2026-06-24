@@ -17,13 +17,30 @@ import {
   type FlowSpec,
 } from "connect-flow-builder";
 
+// callReason values → queue keys
+// claims_status        → claimsQueue
+// billing              → billingQueue
+// prescription         → pharmacyQueue
+// prior_authorization  → pharmacyQueue
+// provider_lookup      → providerQueue
+// eligibility          → memberServicesQueue
+// benefits_inquiry     → memberServicesQueue
+// (no match / timeout) → memberServicesQueue
+
 export const mainInboundSpec: FlowSpec = {
   key: "mainInbound",
   name: "MainInbound",
   type: "CONTACT_FLOW",
   filename: "main-inbound.json",
   description: "Primary inbound flow for support.",
-  dependsOnFlows: ["supportQueueExperience"],
+  dependsOnFlows: [
+    "supportQueueExperience",
+    "claimsQueueExperience",
+    "billingQueueExperience",
+    "pharmacyQueueExperience",
+    "providerQueueExperience",
+    "memberServicesQueueExperience",
+  ],
   build: (context) => {
     const setDefaultVoice = new UpdateContactTextToSpeechVoiceActionBuilder(
       "SetDefaultVoice",
@@ -159,14 +176,14 @@ export const mainInboundSpec: FlowSpec = {
         .onInputTimeLimitExceeded(nextOnNoMatch)
         .onNoMatchingCondition(nextOnNoMatch);
 
-    const intentPromptEnglish = intentBranches("SetSupportQueueFlow")(
+    const intentPromptEnglish = intentBranches("RouteToQueue")(
       new ConnectParticipantWithLexBotActionBuilder("IntentPromptEnglish")
         .text("How can I help you today? You can say things like: check my claim status, benefits question, prior authorization, find a provider, prescription help, check eligibility, or billing question.")
         .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
         .sessionAttribute("x-amz-lex:locale-id", "en_US"),
     ).build();
 
-    const intentPromptSpanish = intentBranches("SetSupportQueueFlow")(
+    const intentPromptSpanish = intentBranches("RouteToQueue")(
       new ConnectParticipantWithLexBotActionBuilder("IntentPromptSpanish")
         .text("¿Cómo puedo ayudarle hoy? Puede decir: estado de reclamación, pregunta sobre beneficios, autorización previa, buscar proveedor, ayuda con receta, verificar elegibilidad, o pregunta de facturación.")
         .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
@@ -184,7 +201,7 @@ export const mainInboundSpec: FlowSpec = {
     const invokeClaimsModule = new InvokeFlowModuleActionBuilder("InvokeClaimsModule")
       .flowModuleId(context.refs.flowId("claimsModule"))
       .next("CheckNeedsTransfer")
-      .onError("SetSupportQueueFlow")
+      .onError("RouteToQueue")
       .build();
 
     // ── Benefits ──────────────────────────────────────────────────────────────
@@ -203,12 +220,12 @@ export const mainInboundSpec: FlowSpec = {
 
     const benefitsTransferEnglish = new MessageParticipantActionBuilder("BenefitsTransferEnglish")
       .text("Let me connect you with a benefits specialist.")
-      .next("SetSupportQueueFlow")
+      .next("RouteToQueue")
       .build();
 
     const benefitsTransferSpanish = new MessageParticipantActionBuilder("BenefitsTransferSpanish")
       .text("Permítame conectarlo con un especialista en beneficios.")
-      .next("SetSupportQueueFlow")
+      .next("RouteToQueue")
       .build();
 
     // ── Prior Authorization ───────────────────────────────────────────────────
@@ -222,7 +239,7 @@ export const mainInboundSpec: FlowSpec = {
     const invokePriorAuthModule = new InvokeFlowModuleActionBuilder("InvokePriorAuthModule")
       .flowModuleId(context.refs.flowId("priorAuthModule"))
       .next("CheckNeedsTransfer")
-      .onError("SetSupportQueueFlow")
+      .onError("RouteToQueue")
       .build();
 
     // ── Provider Lookup ───────────────────────────────────────────────────────
@@ -237,7 +254,7 @@ export const mainInboundSpec: FlowSpec = {
     const invokeProviderModule = new InvokeFlowModuleActionBuilder("InvokeProviderModule")
       .flowModuleId(context.refs.flowId("providerModule"))
       .next("CheckNeedsTransfer")
-      .onError("SetSupportQueueFlow")
+      .onError("RouteToQueue")
       .build();
 
     // ── Prescription / Formulary ──────────────────────────────────────────────
@@ -250,7 +267,7 @@ export const mainInboundSpec: FlowSpec = {
     const invokeFormularyModule = new InvokeFlowModuleActionBuilder("InvokeFormularyModule")
       .flowModuleId(context.refs.flowId("formularyModule"))
       .next("CheckNeedsTransfer")
-      .onError("SetSupportQueueFlow")
+      .onError("RouteToQueue")
       .build();
 
     // ── Eligibility (stays inline — no Lambda, reads from ANI lookup result) ──
@@ -289,7 +306,7 @@ export const mainInboundSpec: FlowSpec = {
 
     const eligibilitySuspendedEnglish = new MessageParticipantActionBuilder("EligibilitySuspendedEnglish")
       .text("Your coverage is currently suspended. Please speak with a representative for assistance.")
-      .next("SetSupportQueueFlow")
+      .next("RouteToQueue")
       .build();
 
     const eligibilityPendingEnglish = new MessageParticipantActionBuilder("EligibilityPendingEnglish")
@@ -299,7 +316,7 @@ export const mainInboundSpec: FlowSpec = {
 
     const eligibilityUnknownEnglish = new MessageParticipantActionBuilder("EligibilityUnknownEnglish")
       .text("We were unable to locate your eligibility information. Let me connect you with a representative.")
-      .next("SetSupportQueueFlow")
+      .next("RouteToQueue")
       .build();
 
     const eligibilityActiveSpanish = new MessageParticipantActionBuilder("EligibilityActiveSpanish")
@@ -309,7 +326,7 @@ export const mainInboundSpec: FlowSpec = {
 
     const eligibilitySuspendedSpanish = new MessageParticipantActionBuilder("EligibilitySuspendedSpanish")
       .text("Su cobertura está actualmente suspendida. Por favor hable con un representante para obtener ayuda.")
-      .next("SetSupportQueueFlow")
+      .next("RouteToQueue")
       .build();
 
     const eligibilityPendingSpanish = new MessageParticipantActionBuilder("EligibilityPendingSpanish")
@@ -319,13 +336,13 @@ export const mainInboundSpec: FlowSpec = {
 
     const eligibilityUnknownSpanish = new MessageParticipantActionBuilder("EligibilityUnknownSpanish")
       .text("No pudimos encontrar su información de elegibilidad. Permítame conectarlo con un representante.")
-      .next("SetSupportQueueFlow")
+      .next("RouteToQueue")
       .build();
 
     const offerTransferEnglish = new GetParticipantInputActionBuilder("OfferTransferEnglish")
       .text("If you have additional questions, press 1 to speak with a representative. Press 2 to end the call.")
       .inputTimeLimitSeconds(8)
-      .when(equalsCondition("1"), "SetSupportQueueFlow")
+      .when(equalsCondition("1"), "RouteToQueue")
       .when(equalsCondition("2"), "Disconnect")
       .onError("Disconnect", "InputTimeLimitExceeded")
       .onError("Disconnect", "NoMatchingCondition")
@@ -335,7 +352,7 @@ export const mainInboundSpec: FlowSpec = {
     const offerTransferSpanish = new GetParticipantInputActionBuilder("OfferTransferSpanish")
       .text("Si tiene preguntas adicionales, oprima 1 para hablar con un representante. Oprima 2 para terminar la llamada.")
       .inputTimeLimitSeconds(8)
-      .when(equalsCondition("1"), "SetSupportQueueFlow")
+      .when(equalsCondition("1"), "RouteToQueue")
       .when(equalsCondition("2"), "Disconnect")
       .onError("Disconnect", "InputTimeLimitExceeded")
       .onError("Disconnect", "NoMatchingCondition")
@@ -352,7 +369,7 @@ export const mainInboundSpec: FlowSpec = {
     const invokeBillingModule = new InvokeFlowModuleActionBuilder("InvokeBillingModule")
       .flowModuleId(context.refs.flowId("billingModule"))
       .next("CheckNeedsTransfer")
-      .onError("SetSupportQueueFlow")
+      .onError("RouteToQueue")
       .build();
 
     // ── Post-module routing ───────────────────────────────────────────────────
@@ -360,27 +377,88 @@ export const mainInboundSpec: FlowSpec = {
     // the caller chose to end the call from an offer-transfer prompt.
     const checkNeedsTransfer = new CompareActionBuilder("CheckNeedsTransfer")
       .comparisonValue("$.Attributes.needsTransfer")
-      .when(equalsCondition("true"), "SetSupportQueueFlow")
+      .when(equalsCondition("true"), "RouteToQueue")
       .onError("Disconnect", "NoMatchingCondition")
       .build();
 
-    const setSupportQueueFlow = new SetCustomerQueueFlowActionBuilder(
-      "SetSupportQueueFlow",
-    )
-      .customerQueueFlowArn(context.refs.flowArn("supportQueueExperience"))
-      .next("SetWorkingQueue")
+    // Route to the queue matching the caller's intent. All unrecognized paths
+    // (benefits, eligibility, timeout/no-match) land in member-services.
+    const routeToQueue = new CompareActionBuilder("RouteToQueue")
+      .comparisonValue("$.Attributes.callReason")
+      .when(equalsCondition("claims_status"),       "SetClaimsQueueFlow")
+      .when(equalsCondition("billing"),             "SetBillingQueueFlow")
+      .when(equalsCondition("prescription"),        "SetPharmacyQueueFlow")
+      .when(equalsCondition("prior_authorization"), "SetPharmacyQueueFlow")
+      .when(equalsCondition("provider_lookup"),     "SetProviderQueueFlow")
+      .onError("SetMemberServicesQueueFlow", "NoMatchingCondition")
+      .build();
+
+    // ── Claims ────────────────────────────────────────────────────────────────
+    const setClaimsQueueFlow = new SetCustomerQueueFlowActionBuilder("SetClaimsQueueFlow")
+      .customerQueueFlowArn(context.refs.flowArn("claimsQueueExperience"))
+      .next("SetClaimsQueue")
       .onError("Disconnect")
       .build();
 
-    const setWorkingQueue = new UpdateContactTargetQueueActionBuilder(
-      "SetWorkingQueue",
-    )
-      .queueId(context.refs.queueArn("support"))
-      .next("TransferToSupport")
+    const setClaimsQueue = new UpdateContactTargetQueueActionBuilder("SetClaimsQueue")
+      .queueId(context.refs.queueArn("claims"))
+      .next("TransferToQueue")
       .onError("Disconnect")
       .build();
 
-    const transfer = new TransferContactToQueueActionBuilder("TransferToSupport")
+    // ── Billing ───────────────────────────────────────────────────────────────
+    const setBillingQueueFlow = new SetCustomerQueueFlowActionBuilder("SetBillingQueueFlow")
+      .customerQueueFlowArn(context.refs.flowArn("billingQueueExperience"))
+      .next("SetBillingQueue")
+      .onError("Disconnect")
+      .build();
+
+    const setBillingQueue = new UpdateContactTargetQueueActionBuilder("SetBillingQueue")
+      .queueId(context.refs.queueArn("billing"))
+      .next("TransferToQueue")
+      .onError("Disconnect")
+      .build();
+
+    // ── Pharmacy (prescription + prior auth) ──────────────────────────────────
+    const setPharmacyQueueFlow = new SetCustomerQueueFlowActionBuilder("SetPharmacyQueueFlow")
+      .customerQueueFlowArn(context.refs.flowArn("pharmacyQueueExperience"))
+      .next("SetPharmacyQueue")
+      .onError("Disconnect")
+      .build();
+
+    const setPharmacyQueue = new UpdateContactTargetQueueActionBuilder("SetPharmacyQueue")
+      .queueId(context.refs.queueArn("pharmacy"))
+      .next("TransferToQueue")
+      .onError("Disconnect")
+      .build();
+
+    // ── Provider ──────────────────────────────────────────────────────────────
+    const setProviderQueueFlow = new SetCustomerQueueFlowActionBuilder("SetProviderQueueFlow")
+      .customerQueueFlowArn(context.refs.flowArn("providerQueueExperience"))
+      .next("SetProviderQueue")
+      .onError("Disconnect")
+      .build();
+
+    const setProviderQueue = new UpdateContactTargetQueueActionBuilder("SetProviderQueue")
+      .queueId(context.refs.queueArn("provider"))
+      .next("TransferToQueue")
+      .onError("Disconnect")
+      .build();
+
+    // ── Member Services (eligibility, benefits, timeout/no-match) ─────────────
+    const setMemberServicesQueueFlow = new SetCustomerQueueFlowActionBuilder("SetMemberServicesQueueFlow")
+      .customerQueueFlowArn(context.refs.flowArn("memberServicesQueueExperience"))
+      .next("SetMemberServicesQueue")
+      .onError("Disconnect")
+      .build();
+
+    const setMemberServicesQueue = new UpdateContactTargetQueueActionBuilder("SetMemberServicesQueue")
+      .queueId(context.refs.queueArn("memberServices"))
+      .next("TransferToQueue")
+      .onError("Disconnect")
+      .build();
+
+    const transfer = new TransferContactToQueueActionBuilder("TransferToQueue")
       .next("Disconnect")
       .onError("Disconnect", "QueueAtCapacity")
       .onError("Disconnect")
@@ -436,8 +514,17 @@ export const mainInboundSpec: FlowSpec = {
       .add(setIntentBilling)
       .add(invokeBillingModule)
       .add(checkNeedsTransfer)
-      .add(setSupportQueueFlow)
-      .add(setWorkingQueue)
+      .add(routeToQueue)
+      .add(setClaimsQueueFlow)
+      .add(setClaimsQueue)
+      .add(setBillingQueueFlow)
+      .add(setBillingQueue)
+      .add(setPharmacyQueueFlow)
+      .add(setPharmacyQueue)
+      .add(setProviderQueueFlow)
+      .add(setProviderQueue)
+      .add(setMemberServicesQueueFlow)
+      .add(setMemberServicesQueue)
       .add(transfer)
       .add(disconnect)
       .build();

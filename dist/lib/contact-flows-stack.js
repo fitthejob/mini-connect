@@ -2,6 +2,14 @@ import * as cdk from "aws-cdk-lib";
 import * as connect from "aws-cdk-lib/aws-connect";
 import { renderFlowCatalog, } from "connect-flow-builder";
 import { flowCatalog } from "../src/flows/catalog.js";
+const QUEUE_FLOW_KEYS = [
+    "supportQueueExperience",
+    "claimsQueueExperience",
+    "billingQueueExperience",
+    "pharmacyQueueExperience",
+    "providerQueueExperience",
+    "memberServicesQueueExperience",
+];
 const MODULE_KEYS = [
     "claimsModule",
     "billingModule",
@@ -27,26 +35,28 @@ function renderTags(tags) {
 export class ContactFlowsStack extends cdk.Stack {
     constructor(scope, id, props) {
         super(scope, id, props);
-        // ── Render and deploy support queue experience (no bindings needed) ──────
-        const supportOnlyCatalog = flowCatalog.filter((spec) => spec.key === "supportQueueExperience");
-        if (supportOnlyCatalog.length !== 1) {
-            throw new Error('Expected exactly one "supportQueueExperience" flow spec in the catalog.');
-        }
-        const supportRender = renderFlowCatalog({
-            catalog: supportOnlyCatalog,
+        // ── Render and deploy all queue experience flows (no bindings needed) ────
+        const queueFlowCatalog = flowCatalog.filter((spec) => QUEUE_FLOW_KEYS.includes(spec.key));
+        const queueFlowRender = renderFlowCatalog({
+            catalog: queueFlowCatalog,
             environment: props.envName,
         });
-        const supportArtifact = requireArtifact(supportRender.artifacts, "supportQueueExperience");
-        assertNoUnresolvedPlaceholders(supportArtifact);
-        const supportQueueExperienceFlow = new connect.CfnContactFlow(this, "SupportQueueExperienceFlow", {
-            instanceArn: props.instanceArn,
-            name: supportArtifact.name,
-            type: supportArtifact.type,
-            description: supportArtifact.description,
-            state: supportArtifact.state,
-            content: supportArtifact.content,
-            tags: renderTags(supportArtifact.tags),
-        });
+        const queueFlowCfn = new Map();
+        for (const key of QUEUE_FLOW_KEYS) {
+            const artifact = requireArtifact(queueFlowRender.artifacts, key);
+            assertNoUnresolvedPlaceholders(artifact);
+            const logicalId = key.charAt(0).toUpperCase() + key.slice(1) + "Flow";
+            const cfnFlow = new connect.CfnContactFlow(this, logicalId, {
+                instanceArn: props.instanceArn,
+                name: artifact.name,
+                type: artifact.type,
+                description: artifact.description,
+                state: artifact.state,
+                content: artifact.content,
+                tags: renderTags(artifact.tags),
+            });
+            queueFlowCfn.set(key, cfnFlow);
+        }
         // ── Render and deploy modules (Lambda bindings only — no flowIds needed) ─
         const moduleCatalog = flowCatalog.filter((spec) => MODULE_KEYS.includes(spec.key));
         const moduleBindings = {
@@ -81,9 +91,19 @@ export class ContactFlowsStack extends cdk.Stack {
         const deploymentBindings = {
             queues: {
                 support: props.supportQueueArn,
+                claims: props.claimsQueueArn,
+                billing: props.billingQueueArn,
+                pharmacy: props.pharmacyQueueArn,
+                provider: props.providerQueueArn,
+                memberServices: props.memberServicesQueueArn,
             },
             flowArns: {
-                supportQueueExperience: supportQueueExperienceFlow.attrContactFlowArn,
+                supportQueueExperience: queueFlowCfn.get("supportQueueExperience").attrContactFlowArn,
+                claimsQueueExperience: queueFlowCfn.get("claimsQueueExperience").attrContactFlowArn,
+                billingQueueExperience: queueFlowCfn.get("billingQueueExperience").attrContactFlowArn,
+                pharmacyQueueExperience: queueFlowCfn.get("pharmacyQueueExperience").attrContactFlowArn,
+                providerQueueExperience: queueFlowCfn.get("providerQueueExperience").attrContactFlowArn,
+                memberServicesQueueExperience: queueFlowCfn.get("memberServicesQueueExperience").attrContactFlowArn,
             },
             flowIds: Object.fromEntries(MODULE_KEYS.map((key) => {
                 const arn = moduleCfnFlows.get(key).attrContactFlowModuleArn;
@@ -119,7 +139,9 @@ export class ContactFlowsStack extends cdk.Stack {
             content: mainInboundArtifact.content,
             tags: renderTags(mainInboundArtifact.tags),
         });
-        mainInboundFlow.node.addDependency(supportQueueExperienceFlow);
+        for (const cfnQueueFlow of queueFlowCfn.values()) {
+            mainInboundFlow.node.addDependency(cfnQueueFlow);
+        }
         for (const cfnModule of moduleCfnFlows.values()) {
             mainInboundFlow.node.addDependency(cfnModule);
         }
@@ -176,9 +198,11 @@ export class ContactFlowsStack extends cdk.Stack {
         new cdk.CfnOutput(this, `SupportQueueArnInput-${props.envName}`, {
             value: props.supportQueueArn,
         });
-        new cdk.CfnOutput(this, `SupportQueueExperienceFlowArn-${props.envName}`, {
-            value: supportQueueExperienceFlow.attrContactFlowArn,
-        });
+        for (const key of QUEUE_FLOW_KEYS) {
+            new cdk.CfnOutput(this, `${key}FlowArn-${props.envName}`, {
+                value: queueFlowCfn.get(key).attrContactFlowArn,
+            });
+        }
         new cdk.CfnOutput(this, `MainInboundFlowArn-${props.envName}`, {
             value: mainInboundFlow.attrContactFlowArn,
         });

@@ -22,10 +22,20 @@ const outputDir = path.join(
 
 const bindings: FlowBindings = {
   queues: {
-    support: "${Queue.support.Arn}",
+    support:        "${Queue.support.Arn}",
+    claims:         "${Queue.claims.Arn}",
+    billing:        "${Queue.billing.Arn}",
+    pharmacy:       "${Queue.pharmacy.Arn}",
+    provider:       "${Queue.provider.Arn}",
+    memberServices: "${Queue.memberServices.Arn}",
   },
   flowArns: {
-    supportQueueExperience: "${Flow.supportQueueExperience.Arn}",
+    supportQueueExperience:        "${Flow.supportQueueExperience.Arn}",
+    claimsQueueExperience:         "${Flow.claimsQueueExperience.Arn}",
+    billingQueueExperience:        "${Flow.billingQueueExperience.Arn}",
+    pharmacyQueueExperience:       "${Flow.pharmacyQueueExperience.Arn}",
+    providerQueueExperience:       "${Flow.providerQueueExperience.Arn}",
+    memberServicesQueueExperience: "${Flow.memberServicesQueueExperience.Arn}",
   },
   flowIds: {
     claimsModule: "${FlowModule.claimsModule.Id}",

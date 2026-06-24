@@ -39,8 +39,16 @@ export const formularyModuleSpec = {
             .build();
         const compareFound = new CompareActionBuilder("CompareFormularyFound")
             .comparisonValue("$.External.found")
-            .when(equalsCondition("true"), "CompareFormularyCovered")
+            .when(equalsCondition("true"), "PersistFormularyResults")
             .onError("FormularyNotFoundLanguageCheck", "NoMatchingCondition")
+            .build();
+        const persistResults = new UpdateContactAttributesActionBuilder("PersistFormularyResults")
+            .attribute("externalMedicationName", "$.External.medicationName")
+            .attribute("externalCovered", "$.External.covered")
+            .attribute("externalTier", "$.External.tier")
+            .attribute("externalCopay", "$.External.copay")
+            .attribute("externalRequiresPriorAuth", "$.External.requiresPriorAuth")
+            .next("CompareFormularyCovered")
             .build();
         const notFoundLanguageCheck = new CompareActionBuilder("FormularyNotFoundLanguageCheck")
             .comparisonValue("$.Attributes.preferredLanguage")
@@ -128,6 +136,7 @@ export const formularyModuleSpec = {
             .add(errorEnglish)
             .add(errorSpanish)
             .add(compareFound)
+            .add(persistResults)
             .add(notFoundLanguageCheck)
             .add(compareCovered)
             .add(notCoveredLanguageCheck)

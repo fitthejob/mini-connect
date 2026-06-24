@@ -39,8 +39,16 @@ export const claimsModuleSpec = {
             .build();
         const compareFound = new CompareActionBuilder("CompareClaimsFound")
             .comparisonValue("$.External.found")
-            .when(equalsCondition("true"), "CompareClaimsStatus")
+            .when(equalsCondition("true"), "PersistClaimsResults")
             .onError("ClaimsNotFoundLanguageCheck", "NoMatchingCondition")
+            .build();
+        const persistResults = new UpdateContactAttributesActionBuilder("PersistClaimsResults")
+            .attribute("externalStatus", "$.External.status")
+            .attribute("externalDateOfService", "$.External.dateOfService")
+            .attribute("externalBilledAmount", "$.External.billedAmount")
+            .attribute("externalPaidAmount", "$.External.paidAmount")
+            .attribute("externalDenialReason", "$.External.denialReason")
+            .next("CompareClaimsStatus")
             .build();
         const notFoundLanguageCheck = new CompareActionBuilder("ClaimsNotFoundLanguageCheck")
             .comparisonValue("$.Attributes.preferredLanguage")
@@ -133,6 +141,7 @@ export const claimsModuleSpec = {
             .add(errorEnglish)
             .add(errorSpanish)
             .add(compareFound)
+            .add(persistResults)
             .add(notFoundLanguageCheck)
             .add(notFoundEnglish)
             .add(notFoundSpanish)

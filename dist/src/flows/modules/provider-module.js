@@ -39,8 +39,14 @@ export const providerModuleSpec = {
             .build();
         const compareFound = new CompareActionBuilder("CompareProviderFound")
             .comparisonValue("$.External.found")
-            .when(equalsCondition("true"), "ProviderFoundLanguageCheck")
+            .when(equalsCondition("true"), "PersistProviderResults")
             .onError("ProviderNotFoundLanguageCheck", "NoMatchingCondition")
+            .build();
+        const persistResults = new UpdateContactAttributesActionBuilder("PersistProviderResults")
+            .attribute("externalName", "$.External.name")
+            .attribute("externalPhone", "$.External.phone")
+            .attribute("externalInNetwork", "$.External.inNetwork")
+            .next("ProviderFoundLanguageCheck")
             .build();
         const foundLanguageCheck = new CompareActionBuilder("ProviderFoundLanguageCheck")
             .comparisonValue("$.Attributes.preferredLanguage")
@@ -101,6 +107,7 @@ export const providerModuleSpec = {
             .add(errorEnglish)
             .add(errorSpanish)
             .add(compareFound)
+            .add(persistResults)
             .add(foundLanguageCheck)
             .add(foundEnglish)
             .add(foundSpanish)

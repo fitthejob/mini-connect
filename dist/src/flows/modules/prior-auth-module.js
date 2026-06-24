@@ -39,8 +39,14 @@ export const priorAuthModuleSpec = {
             .build();
         const compareFound = new CompareActionBuilder("CompareProcedureFound")
             .comparisonValue("$.External.found")
-            .when(equalsCondition("true"), "CompareProcedureCovered")
+            .when(equalsCondition("true"), "PersistPriorAuthResults")
             .onError("PriorAuthNotFoundLanguageCheck", "NoMatchingCondition")
+            .build();
+        const persistResults = new UpdateContactAttributesActionBuilder("PersistPriorAuthResults")
+            .attribute("externalCovered", "$.External.covered")
+            .attribute("externalRequiresPriorAuth", "$.External.requiresPriorAuth")
+            .attribute("externalDescription", "$.External.description")
+            .next("CompareProcedureCovered")
             .build();
         const notFoundLanguageCheck = new CompareActionBuilder("PriorAuthNotFoundLanguageCheck")
             .comparisonValue("$.Attributes.preferredLanguage")
@@ -137,6 +143,7 @@ export const priorAuthModuleSpec = {
             .add(errorEnglish)
             .add(errorSpanish)
             .add(compareFound)
+            .add(persistResults)
             .add(notFoundLanguageCheck)
             .add(codeNotFoundEnglish)
             .add(codeNotFoundSpanish)

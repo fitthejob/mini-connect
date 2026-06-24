@@ -57,8 +57,17 @@ export const billingModuleSpec: FlowSpec = {
 
     const compareFound = new CompareActionBuilder("CompareBillingFound")
       .comparisonValue("$.External.found")
-      .when(equalsCondition("true"), "CompareBillingStatus")
+      .when(equalsCondition("true"), "PersistBillingResults")
       .onError("BillingNotFoundLanguageCheck", "NoMatchingCondition")
+      .build();
+
+    const persistResults = new UpdateContactAttributesActionBuilder("PersistBillingResults")
+      .attribute("externalStatus", "$.External.status")
+      .attribute("externalAmount", "$.External.amount")
+      .attribute("externalDateIssued", "$.External.dateIssued")
+      .attribute("externalDueDate", "$.External.dueDate")
+      .attribute("externalDescription", "$.External.description")
+      .next("CompareBillingStatus")
       .build();
 
     const notFoundLanguageCheck = new CompareActionBuilder("BillingNotFoundLanguageCheck")
@@ -170,6 +179,7 @@ export const billingModuleSpec: FlowSpec = {
       .add(errorEnglish)
       .add(errorSpanish)
       .add(compareFound)
+      .add(persistResults)
       .add(notFoundLanguageCheck)
       .add(notFoundEnglish)
       .add(notFoundSpanish)
