@@ -1,4 +1,5 @@
 # mini-connect
+*Built by [Andrew Conlon](https://github.com/fitthejob) — MIT License*
 
 A reference CDK implementation of a bilingual Amazon Connect contact center for a health plan use case. Demonstrates a mature IVR architecture including ANI-based member identification, Lex-driven intent routing, domain-specific Lambda integrations, Customer Profiles, per-intent queue routing with skill-based hold messaging, and an agent screen pop at answer time.
 
