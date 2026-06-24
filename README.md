@@ -1,7 +1,7 @@
 # mini-connect
 *Built by [Andrew Conlon](https://github.com/fitthejob) — MIT License*
 
-A reference CDK implementation of a bilingual Amazon Connect contact center for a health plan use case. Demonstrates a mature IVR architecture including ANI-based member identification, Lex-driven intent routing, domain-specific Lambda integrations, Customer Profiles, per-intent queue routing with skill-based hold messaging, and an agent screen pop at answer time.
+A reference CDK implementation of a bilingual Amazon Connect contact center for a health plan use case. Demonstrates a mature IVR architecture including ANI-based member identification, DTMF second-factor identity verification, Lex-driven intent routing, domain-specific Lambda integrations, Customer Profiles, per-intent queue routing with skill-based hold messaging, and an agent screen pop at answer time.
 
 Built around [`connect-flow-builder`](https://github.com/fitthejob/connect-flow-builder) — a vendored TypeScript package that provides a type-safe DSL for authoring Amazon Connect contact flows as code.
 
@@ -9,7 +9,7 @@ Built around [`connect-flow-builder`](https://github.com/fitthejob/connect-flow-
 
 ## What It Does
 
-A caller dials in. Before they say a word, their phone number is matched against a Customer Profiles domain to identify them as a health plan member. Their name, member ID, plan, and coverage status are available for the rest of the call. They select a language (English or Spanish), hear a greeting, and state their intent.
+A caller dials in. Before they say a word, their phone number is matched against a Customer Profiles domain to identify them as a health plan member. Their name, member ID, plan, and coverage status are available for the rest of the call. They are greeted by name, verify their identity with a DTMF date-of-birth challenge, select a language (English or Spanish), and state their intent.
 
 Seven intents are handled:
 
@@ -25,13 +25,13 @@ Seven intents are handled:
 
 Every self-service path is handled by a domain `CONTACT_FLOW_MODULE`. The main inbound flow is a pure orchestration spine — it dispatches to modules and owns no domain logic.
 
-When a call transfers to an agent, a screen pop fires at answer time using the AWS-managed Detail view. The agent sees the caller's name (or "Unidentified Member" for unrecognized callers), member ID, plan, coverage status, preferred language, and the complete self-service result — without re-asking the caller a single question.
+When a call transfers to an agent, a screen pop fires at answer time using the AWS-managed Detail view. The agent sees the caller's name (or "Unidentified Member" for unrecognized callers), member ID, plan, coverage status, preferred language, the complete self-service result, and whether the IVR attempted a lookup — without re-asking the caller a single question.
 
 ---
 
 ## Architecture
 
-### Stack topology (17 stacks)
+### Stack topology (18 stacks)
 
 ```
 MiniConnect-Kms
@@ -39,7 +39,7 @@ MiniConnect-Kms
   │     └── MiniConnect-Queues (6 domain queues + hours-of-operation)
   ├── MiniConnect-DynamoDB (member identity table)
   ├── MiniConnect-S3 (Lambda artifact bucket)
-  │     └── MiniConnect-Lambda (hrs_of_ops, member_lookup)
+  │     └── MiniConnect-Lambda (hrs_of_ops, member_lookup, identity_verify)
   ├── MiniConnect-BackendData (5 DynamoDB tables)
   │     ├── MiniConnect-Claims
   │     ├── MiniConnect-Providers
@@ -48,6 +48,7 @@ MiniConnect-Kms
   │     └── MiniConnect-ProcedureCodes
   ├── MiniConnect-CustomerProfiles
   ├── MiniConnect-Lex (bilingual bot, en_US + es_US)
+  ├── MiniConnect-SecurityProfiles (InstanceViewer read-only profile)
   └── MiniConnect-MonitoringOps / MonitoringDev
                                         ↓
                           MiniConnect-ContactFlows
@@ -56,12 +57,12 @@ MiniConnect-Kms
 ### Flow catalog (13 flows)
 
 **CONTACT_FLOW:**
-- `MainInbound` — 5-section orchestration spine: call setup → intent capture → module dispatch → post-module routing → queue setup
+- `MainInbound` — 5-section orchestration spine: call setup → second-factor verification → intent capture → module dispatch → post-module routing → queue setup
 
 **CUSTOMER_QUEUE (6 hold experiences, one per domain queue):**
 - `ClaimsQueueExperience`, `BillingQueueExperience`, `PharmacyQueueExperience`, `ProviderQueueExperience`, `MemberServicesQueueExperience`, `SupportQueueExperience`
 
-**CONTACT_FLOW_MODULE (6 domain modules + 1 fallback):**
+**CONTACT_FLOW_MODULE (6 domain modules):**
 - `ClaimsModule`, `BillingModule`, `FormularyModule`, `ProviderModule`, `PriorAuthModule`, `EligibilityModule`
 
 ### Per-intent queue routing
@@ -76,9 +77,9 @@ Every intent routes to its own domain queue with an intent-specific bilingual ho
 | `provider_lookup` | Provider | "We are happy to assist you with your provider search..." |
 | `eligibility`, `benefits_inquiry`, fallback | MemberServices | "We are happy to assist you..." |
 
-### Data security model
+### Identity and security model
 
-All data access uses the ANI-verified `memberId` and `planId` from the Customer Profiles lookup as authorization keys. Callers never prove identity with a PIN — the phone number is the identity assertion.
+Callers are identified by ANI — their phone number is matched against the Customer Profiles domain before they speak. Identified callers are then challenged with a DTMF date-of-birth verification (MMDDYYYY, 2 attempts) before any PHI is accessed. The `identity_verify` Lambda compares the input against the member DynamoDB record directly; the DOB value never appears in a contact attribute or flow log.
 
 Claims and billing use composite DynamoDB keys `(claimId, memberId)` and `(invoiceId, memberId)`. A caller cannot retrieve another member's record even if they know the ID. Formulary lookups are always scoped to the caller's plan — callers never need to state their plan.
 
@@ -115,6 +116,7 @@ npm run stage:flows
 npm run deploy:queues
 npm run deploy:flows
 npm run deploy:lambdas
+npm run deploy:security-profiles
 
 # Deploy everything
 npm run deploy:all:dev
@@ -158,17 +160,17 @@ npm run seed:backend -- dev
 
 ```
 bin/
-  mini-connect.ts              CDK app entry — wires all 17 stacks
+  mini-connect.ts              CDK app entry — wires all 18 stacks
 
 lib/
   connect-instance-stack.ts
   connect-queues-stack.ts      6 domain queues + hours-of-operation
   contact-flows-stack.ts       Renders and deploys all 13 flows
-  agent-view-stack.ts          (planned)
-  lambda-stack.ts
+  lambda-stack.ts              hrs_of_ops, member_lookup, identity_verify
   lex-stack.ts
   kms-stack.ts / s3-stack.ts / dynamodb-stack.ts
   customer-profiles-stack.ts
+  security-profiles-stack.ts   InstanceViewer read-only security profile
   backend/                     5 domain Lambda stacks
   observability/               CloudWatch dashboards + SNS alarms
 
@@ -179,7 +181,7 @@ src/flows/
   queue-experiences/           5 domain CUSTOMER_QUEUE hold flows
   modules/                     6 domain CONTACT_FLOW_MODULE specs
 
-src/lambdas/                   Python Lambda handlers (7 functions)
+src/lambdas/                   Python Lambda handlers (8 functions)
 src/bots/                      Lex bot definition (bilingual, 7 intents)
 
 scripts/
@@ -217,10 +219,7 @@ The separation of concerns is intentional:
 
 ## Planned
 
-- **Bedrock post-call summarization** — EventBridge on disconnect → Lambda → Bedrock Claude API with transcript → write summary to S3
+- **Bedrock post-call summarization** — EventBridge on disconnect → Lambda → Bedrock Claude API → write summary to S3
 - **Unit tests** — `src/bots/render.ts` and `src/flows/catalog.ts` using Node.js built-in test runner
 - **Routing profiles** — `CfnRoutingProfile` per domain queue for skill-based routing
-- **Second-factor identity verification** — ANI lookup identifies the caller but does not authenticate them; a stolen phone can impersonate a member. A PIN or date-of-birth DTMF challenge after `LookupByPhone` is required before any PHI is read back in a production deployment
-- **Null-check for missing Lex slots** — targeted bilingual message when a required slot wasn't captured
-- **Personalized greeting** — use caller's first name from ANI lookup
 - **Callback on queue capacity** — queued callback offer when all agents are busy
