@@ -37,6 +37,8 @@ Joanna Neural is set before any TTS plays. Lex prompt asks the caller to press o
 
 **Gap:** `[gap]` If `memberId` or `planId` is missing from the profile (profile exists but fields are incomplete), downstream Lambda lookups will silently fail with `found=false`. There is no mid-flow check for profile completeness.
 
+**Security gap:** `[gap]` ANI lookup identifies the caller but does not authenticate them. A caller with access to a member's phone can impersonate that member and receive PHI (claim status, denial reasons, invoice amounts, formulary details). The current model is identification-only — appropriate for low-risk read operations in a reference implementation, but a production deployment requires a second factor (member ID + date of birth DTMF, or a one-time SMS code) before any PHI is read back. This verification step would sit between `LookupByPhone` and `Greeting` in the main inbound flow.
+
 ---
 
 ## Intent Capture (Lex)

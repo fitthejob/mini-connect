@@ -7,6 +7,7 @@ docs/*
 !docs/CX-STATE.md
 !docs/AX-STATE.md
 !docs/FLOW-BIBLE.md
+!docs/TODO.md
 scripts/seed-customer-profiles.ts
 scripts/seed-backend-data.ts
 scripts/teardown.ts

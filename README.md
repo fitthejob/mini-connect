@@ -219,6 +219,7 @@ The separation of concerns is intentional:
 - **Bedrock post-call summarization** — EventBridge on disconnect → Lambda → Bedrock Claude API with transcript → write summary to S3
 - **Unit tests** — `src/bots/render.ts` and `src/flows/catalog.ts` using Node.js built-in test runner
 - **Routing profiles** — `CfnRoutingProfile` per domain queue for skill-based routing
+- **Second-factor identity verification** — ANI lookup identifies the caller but does not authenticate them; a stolen phone can impersonate a member. A PIN or date-of-birth DTMF challenge after `LookupByPhone` is required before any PHI is read back in a production deployment
 - **Null-check for missing Lex slots** — targeted bilingual message when a required slot wasn't captured
 - **Personalized greeting** — use caller's first name from ANI lookup
 - **Callback on queue capacity** — queued callback offer when all agents are busy
