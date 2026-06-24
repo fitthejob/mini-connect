@@ -2,6 +2,7 @@ import type { BuiltFlow } from "../core/flow-builder.js";
 
 export type ConnectFlowResourceType =
   | "CONTACT_FLOW"
+  | "CONTACT_FLOW_MODULE"
   | "CUSTOMER_QUEUE"
   | "CUSTOMER_HOLD"
   | "CUSTOMER_WHISPER"

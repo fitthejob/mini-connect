@@ -13,6 +13,13 @@ const bindings = {
     flowArns: {
         supportQueueExperience: "${Flow.supportQueueExperience.Arn}",
     },
+    flowIds: {
+        claimsModule: "${FlowModule.claimsModule.Id}",
+        billingModule: "${FlowModule.billingModule.Id}",
+        formularyModule: "${FlowModule.formularyModule.Id}",
+        providerModule: "${FlowModule.providerModule.Id}",
+        priorAuthModule: "${FlowModule.priorAuthModule.Id}",
+    },
     lexBotAliases: {
         mainInbound: "${LexBot.mainInbound.AliasArn}",
     },

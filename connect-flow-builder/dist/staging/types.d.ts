@@ -1,5 +1,5 @@
 import type { BuiltFlow } from "../core/flow-builder.js";
-export type ConnectFlowResourceType = "CONTACT_FLOW" | "CUSTOMER_QUEUE" | "CUSTOMER_HOLD" | "CUSTOMER_WHISPER" | "AGENT_HOLD" | "AGENT_WHISPER" | "OUTBOUND_WHISPER" | "AGENT_TRANSFER" | "QUEUE_TRANSFER" | "CAMPAIGN";
+export type ConnectFlowResourceType = "CONTACT_FLOW" | "CONTACT_FLOW_MODULE" | "CUSTOMER_QUEUE" | "CUSTOMER_HOLD" | "CUSTOMER_WHISPER" | "AGENT_HOLD" | "AGENT_WHISPER" | "OUTBOUND_WHISPER" | "AGENT_TRANSFER" | "QUEUE_TRANSFER" | "CAMPAIGN";
 export type FlowResourceBindingMap = Readonly<Record<string, string>>;
 export interface FlowBindings {
     queues?: FlowResourceBindingMap;

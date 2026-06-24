@@ -238,9 +238,19 @@ export interface ConnectFlowAction {
         }>;
     };
 }
+export interface ConnectFlowModuleSettings {
+    InputParameters: unknown[];
+    OutputParameters: unknown[];
+    Transitions: Array<{
+        DisplayName: string;
+        ReferenceName: string;
+        Description: string;
+    }>;
+}
 export interface ConnectFlowDefinition {
     Version: "2019-10-30";
     StartAction: string;
     Actions: ConnectFlowAction[];
     Metadata?: FlowMetadata;
+    Settings?: ConnectFlowModuleSettings;
 }

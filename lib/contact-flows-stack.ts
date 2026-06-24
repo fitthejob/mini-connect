@@ -24,6 +24,14 @@ interface ContactFlowsStackProps extends cdk.StackProps {
   procedureLookupArn: string;
 }
 
+const MODULE_KEYS = [
+  "claimsModule",
+  "billingModule",
+  "formularyModule",
+  "providerModule",
+  "priorAuthModule",
+] as const;
+
 function requireArtifact(
   artifacts: readonly RenderedFlowArtifact[],
   key: string,
@@ -53,6 +61,7 @@ export class ContactFlowsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ContactFlowsStackProps) {
     super(scope, id, props);
 
+    // ── Render and deploy support queue experience (no bindings needed) ──────
     const supportOnlyCatalog = flowCatalog.filter(
       (spec) => spec.key === "supportQueueExperience",
     );
@@ -88,6 +97,46 @@ export class ContactFlowsStack extends cdk.Stack {
       },
     );
 
+    // ── Render and deploy modules (Lambda bindings only — no flowIds needed) ─
+    const moduleCatalog = flowCatalog.filter((spec) =>
+      MODULE_KEYS.includes(spec.key as typeof MODULE_KEYS[number]),
+    );
+
+    const moduleBindings: FlowBindings = {
+      lambdas: {
+        claimsLookup: props.claimsLookupArn,
+        providerLookup: props.providerLookupArn,
+        formularyLookup: props.formularyLookupArn,
+        billingLookup: props.billingLookupArn,
+        procedureLookup: props.procedureLookupArn,
+      },
+    };
+
+    const moduleRender = renderFlowCatalog({
+      catalog: moduleCatalog,
+      environment: props.envName,
+      bindings: moduleBindings,
+    });
+
+    const moduleCfnFlows = new Map<string, connect.CfnContactFlowModule>();
+
+    for (const key of MODULE_KEYS) {
+      const artifact = requireArtifact(moduleRender.artifacts, key);
+      assertNoUnresolvedPlaceholders(artifact);
+
+      const cfnModule = new connect.CfnContactFlowModule(this, `${key}Flow`, {
+        instanceArn: props.instanceArn,
+        name: artifact.name,
+        description: artifact.description,
+        state: artifact.state,
+        content: artifact.content,
+        tags: renderTags(artifact.tags),
+      });
+
+      moduleCfnFlows.set(key, cfnModule);
+    }
+
+    // ── Render and deploy main inbound (all bindings including module IDs) ───
     const deploymentBindings: FlowBindings = {
       queues: {
         support: props.supportQueueArn,
@@ -95,6 +144,13 @@ export class ContactFlowsStack extends cdk.Stack {
       flowArns: {
         supportQueueExperience: supportQueueExperienceFlow.attrContactFlowArn,
       },
+      flowIds: Object.fromEntries(
+        MODULE_KEYS.map((key) => {
+          const arn = moduleCfnFlows.get(key)!.attrContactFlowModuleArn;
+          // ARN format: arn:aws:connect:region:account:instance/instanceId/flow-module/moduleId
+          return [key, cdk.Fn.select(3, cdk.Fn.split("/", cdk.Fn.select(5, cdk.Fn.split(":", arn))))];
+        }),
+      ),
       lambdas: {
         hrsOfOps: props.hrsOfOpsArn,
         memberLookup: props.memberLookupArn,
@@ -136,10 +192,11 @@ export class ContactFlowsStack extends cdk.Stack {
     );
 
     mainInboundFlow.node.addDependency(supportQueueExperienceFlow);
+    for (const cfnModule of moduleCfnFlows.values()) {
+      mainInboundFlow.node.addDependency(cfnModule);
+    }
 
-    // Minimal stub flows used by validate-flows.ts to syntax-check rendered
-    // flow JSON against the Connect API before a real deploy. They are never
-    // attached to a phone number or queue — Connect just validates the content.
+    // ── Validation sandbox flows ──────────────────────────────────────────────
     const sandboxInboundContent = JSON.stringify({
       Version: "2019-10-30",
       StartAction: "end",
@@ -150,6 +207,20 @@ export class ContactFlowsStack extends cdk.Stack {
       Version: "2019-10-30",
       StartAction: "end",
       Actions: [{ Identifier: "end", Type: "DisconnectParticipant", Parameters: {}, Transitions: {} }],
+    });
+
+    const sandboxModuleContent = JSON.stringify({
+      Version: "2019-10-30",
+      StartAction: "end",
+      Actions: [{ Identifier: "end", Type: "EndFlowModuleExecution", Parameters: {}, Transitions: {} }],
+      Settings: {
+        InputParameters: [],
+        OutputParameters: [],
+        Transitions: [
+          { DisplayName: "Success", ReferenceName: "Success", Description: "" },
+          { DisplayName: "Error", ReferenceName: "Error", Description: "" },
+        ],
+      },
     });
 
     const validationSandboxInbound = new connect.CfnContactFlow(
@@ -178,6 +249,18 @@ export class ContactFlowsStack extends cdk.Stack {
       },
     );
 
+    const validationSandboxModule = new connect.CfnContactFlowModule(
+      this,
+      "ValidationSandboxModule",
+      {
+        instanceArn: props.instanceArn,
+        name: "ValidationSandboxModule",
+        description: "Validation-only sandbox — not used for routing.",
+        state: "ACTIVE",
+        content: sandboxModuleContent,
+      },
+    );
+
     new cdk.CfnOutput(this, `ConnectInstanceArnInput-${props.envName}`, {
       value: props.instanceArn,
     });
@@ -200,6 +283,10 @@ export class ContactFlowsStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, `ValidationSandboxQueueArn-${props.envName}`, {
       value: validationSandboxQueue.attrContactFlowArn,
+    });
+
+    new cdk.CfnOutput(this, `ValidationSandboxModuleArn-${props.envName}`, {
+      value: validationSandboxModule.attrContactFlowModuleArn,
     });
   }
 }

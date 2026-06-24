@@ -71,7 +71,22 @@ export function renderFlowCatalog(options) {
     ensureNoDependencyCycles(catalog);
     const context = createFlowBuildContext(environment, bindings);
     const artifacts = catalog.map((spec) => {
-        const content = spec.build(context).toJsonString();
+        const builtFlow = spec.build(context);
+        const definition = builtFlow.toConnectDefinition();
+        // CONTACT_FLOW_MODULE requires a Settings block in the content JSON
+        // with Success and Error transition declarations. Connect rejects the
+        // content without it even though it is not needed at runtime.
+        if (spec.type === "CONTACT_FLOW_MODULE" && !definition.Settings) {
+            definition.Settings = {
+                InputParameters: [],
+                OutputParameters: [],
+                Transitions: [
+                    { DisplayName: "Success", ReferenceName: "Success", Description: "" },
+                    { DisplayName: "Error", ReferenceName: "Error", Description: "" },
+                ],
+            };
+        }
+        const content = JSON.stringify(definition, null, 2);
         return {
             key: spec.key,
             name: spec.name,
