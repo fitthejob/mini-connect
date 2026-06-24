@@ -141,6 +141,7 @@ async function main(): Promise<void> {
     memberServicesQueueArn,
     hrsOfOpsArn,
     memberLookupArn,
+    identityVerifyArn,
     lexBotAliasArn,
     claimsLookupArn,
     providerLookupArn,
@@ -156,6 +157,7 @@ async function main(): Promise<void> {
     getStackOutput(cfn, "MiniConnect-Queues", `MemberServicesQueue${env}Arn`),
     getStackOutput(cfn, "MiniConnect-Lambda", `HrsOfOpsHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Lambda", `MemberLookupHandlerArn${env}`),
+    getStackOutput(cfn, "MiniConnect-Lambda", `IdentityVerifyHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Lex", `BotAliasArn${env}`),
     getStackOutput(cfn, "MiniConnect-Claims", `ClaimsLookupHandlerArn${env}`),
     getStackOutput(cfn, "MiniConnect-Providers", `ProviderLookupHandlerArn${env}`),
@@ -255,6 +257,7 @@ async function main(): Promise<void> {
     lambdas: {
       hrsOfOps:        hrsOfOpsArn,
       memberLookup:    memberLookupArn,
+      identityVerify:  identityVerifyArn,
       claimsLookup:    claimsLookupArn,
       providerLookup:  providerLookupArn,
       formularyLookup: formularyLookupArn,

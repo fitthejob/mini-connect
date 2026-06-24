@@ -13,16 +13,24 @@ export const priorAuthModuleSpec = {
             .build();
         const bridgeEnglish = new MessageParticipantActionBuilder("PriorAuthLookupBridgeEnglish")
             .text("One moment while I check coverage for that procedure.")
-            .next("InvokeProcedureLookup")
+            .next("PriorAuthSetLookupAttempted")
             .build();
         const bridgeSpanish = new MessageParticipantActionBuilder("PriorAuthLookupBridgeSpanish")
             .text("Un momento mientras verifico la cobertura para ese procedimiento.")
+            .next("PriorAuthSetLookupAttempted")
+            .build();
+        const setLookupAttempted = new UpdateContactAttributesActionBuilder("PriorAuthSetLookupAttempted")
+            .attribute("lookupAttempted", "true")
             .next("InvokeProcedureLookup")
             .build();
         const invokeLambda = new InvokeLambdaFunctionActionBuilder("InvokeProcedureLookup")
             .lambdaArn(context.refs.lambdaArn("procedureLookup"))
             .next("CompareProcedureFound")
-            .onError("PriorAuthErrorLanguageCheck")
+            .onError("PriorAuthSetLookupError")
+            .build();
+        const setLookupError = new UpdateContactAttributesActionBuilder("PriorAuthSetLookupError")
+            .attribute("lookupResult", "error")
+            .next("PriorAuthErrorLanguageCheck")
             .build();
         const errorLanguageCheck = new CompareActionBuilder("PriorAuthErrorLanguageCheck")
             .comparisonValue("$.Attributes.preferredLanguage")
@@ -40,7 +48,29 @@ export const priorAuthModuleSpec = {
         const compareFound = new CompareActionBuilder("CompareProcedureFound")
             .comparisonValue("$.External.found")
             .when(equalsCondition("true"), "PersistPriorAuthResults")
-            .onError("PriorAuthNotFoundLanguageCheck", "NoMatchingCondition")
+            .onError("ComparePriorAuthMissingSlot", "NoMatchingCondition")
+            .build();
+        const compareMissingSlot = new CompareActionBuilder("ComparePriorAuthMissingSlot")
+            .comparisonValue("$.External.missingSlot")
+            .when(equalsCondition("true"), "PriorAuthMissingSlotLanguageCheck")
+            .onError("PriorAuthSetLookupNotFound", "NoMatchingCondition")
+            .build();
+        const missingSlotLanguageCheck = new CompareActionBuilder("PriorAuthMissingSlotLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "PriorAuthMissingSlotSpanish")
+            .onError("PriorAuthMissingSlotEnglish", "NoMatchingCondition")
+            .build();
+        const missingSlotEnglish = new MessageParticipantActionBuilder("PriorAuthMissingSlotEnglish")
+            .text("To check prior authorization, I'll need your procedure code — your doctor's office can provide it. Let me connect you with a representative who can help.")
+            .next("SetNeedsTransfer")
+            .build();
+        const missingSlotSpanish = new MessageParticipantActionBuilder("PriorAuthMissingSlotSpanish")
+            .text("Para verificar la autorización previa, necesito el código de procedimiento — su médico puede proporcionarlo. Permítame conectarlo con un representante que pueda ayudarle.")
+            .next("SetNeedsTransfer")
+            .build();
+        const setLookupNotFound = new UpdateContactAttributesActionBuilder("PriorAuthSetLookupNotFound")
+            .attribute("lookupResult", "not_found")
+            .next("PriorAuthNotFoundLanguageCheck")
             .build();
         const persistResults = new UpdateContactAttributesActionBuilder("PersistPriorAuthResults")
             .attribute("externalCovered", "$.External.covered")
@@ -138,11 +168,18 @@ export const priorAuthModuleSpec = {
             .startWith(languageCheck)
             .add(bridgeEnglish)
             .add(bridgeSpanish)
+            .add(setLookupAttempted)
             .add(invokeLambda)
+            .add(setLookupError)
             .add(errorLanguageCheck)
             .add(errorEnglish)
             .add(errorSpanish)
             .add(compareFound)
+            .add(compareMissingSlot)
+            .add(missingSlotLanguageCheck)
+            .add(missingSlotEnglish)
+            .add(missingSlotSpanish)
+            .add(setLookupNotFound)
             .add(persistResults)
             .add(notFoundLanguageCheck)
             .add(codeNotFoundEnglish)

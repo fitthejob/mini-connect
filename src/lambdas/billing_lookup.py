@@ -15,7 +15,7 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
     member_id = attrs.get("memberId")
 
     if not invoice_id or not member_id:
-        return {"found": "false", "errorMessage": "invoiceId and memberId are required"}
+        return {"found": "false", "missingSlot": "true", "errorMessage": "invoiceId and memberId are required"}
 
     response = table.get_item(Key={"invoiceId": invoice_id, "memberId": member_id})
     invoice = response.get("Item")

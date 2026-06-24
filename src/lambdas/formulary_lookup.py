@@ -19,7 +19,7 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
     medication_name = attrs.get("slotMedicationName")
 
     if not plan_id or not medication_name:
-        return {"found": "false", "errorMessage": "planId and medicationName are required"}
+        return {"found": "false", "missingSlot": "true", "errorMessage": "planId and medicationName are required"}
 
     normalized_name = normalize(medication_name)
 

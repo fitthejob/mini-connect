@@ -17,6 +17,7 @@ import { ProvidersStack } from "../lib/backend/providers-stack.js";
 import { FormularyStack } from "../lib/backend/formulary-stack.js";
 import { BillingStack } from "../lib/backend/billing-stack.js";
 import { ProcedureCodesStack } from "../lib/backend/procedure-codes-stack.js";
+import { SecurityProfilesStack } from "../lib/security-profiles-stack.js";
 import { AwsSolutionsChecks } from "cdk-nag";
 const app = new cdk.App();
 const env = app.node.tryGetContext("env") ?? "dev";
@@ -141,6 +142,7 @@ new ContactFlowsStack(app, "MiniConnect-ContactFlows", {
     memberServicesQueueArn: connectQueuesStack.memberServicesQueueArn,
     hrsOfOpsArn: lambdaStack.hrsOfOpsHandler.functionArn,
     memberLookupArn: lambdaStack.memberLookupHandler.functionArn,
+    identityVerifyArn: lambdaStack.identityVerifyHandler.functionArn,
     lexBotAliasArn: lexStack.botAliasArn,
     claimsLookupArn: claimsStack.claimsLookupHandler.functionArn,
     providerLookupArn: providersStack.providerLookupHandler.functionArn,
@@ -149,6 +151,12 @@ new ContactFlowsStack(app, "MiniConnect-ContactFlows", {
     procedureLookupArn: procedureCodesStack.procedureLookupHandler.functionArn,
 });
 // ── Observability ─────────────────────────────────────────────────────────────
+new SecurityProfilesStack(app, "MiniConnect-SecurityProfiles", {
+    // env: accountMap[env],
+    env: awsEnv,
+    envName: env,
+    connectInstanceStack,
+});
 new MonitoringOpsStack(app, "MiniConnect-MonitoringOps", {
     // env: accountMap[env],
     env: awsEnv,

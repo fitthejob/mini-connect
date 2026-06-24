@@ -29,6 +29,7 @@ const lambdaRegistry: Record<string, string> = {
   formulary_lookup: "formulary_lookup.py",
   billing_lookup: "billing_lookup.py",
   procedure_lookup: "procedure_lookup.py",
+  identity_verify: "identity_verify.py",
 };
 
 async function resolveBucketName(): Promise<string> {

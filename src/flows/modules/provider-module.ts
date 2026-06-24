@@ -25,18 +25,28 @@ export const providerModuleSpec: FlowSpec = {
 
     const bridgeEnglish = new MessageParticipantActionBuilder("ProviderLookupBridgeEnglish")
       .text("One moment while I check your network.")
-      .next("InvokeProviderLookup")
+      .next("ProviderSetLookupAttempted")
       .build();
 
     const bridgeSpanish = new MessageParticipantActionBuilder("ProviderLookupBridgeSpanish")
       .text("Un momento mientras verifico su red.")
+      .next("ProviderSetLookupAttempted")
+      .build();
+
+    const setLookupAttempted = new UpdateContactAttributesActionBuilder("ProviderSetLookupAttempted")
+      .attribute("lookupAttempted", "true")
       .next("InvokeProviderLookup")
       .build();
 
     const invokeLambda = new InvokeLambdaFunctionActionBuilder("InvokeProviderLookup")
       .lambdaArn(context.refs.lambdaArn("providerLookup"))
       .next("CompareProviderFound")
-      .onError("ProviderErrorLanguageCheck")
+      .onError("ProviderSetLookupError")
+      .build();
+
+    const setLookupError = new UpdateContactAttributesActionBuilder("ProviderSetLookupError")
+      .attribute("lookupResult", "error")
+      .next("ProviderErrorLanguageCheck")
       .build();
 
     const errorLanguageCheck = new CompareActionBuilder("ProviderErrorLanguageCheck")
@@ -55,10 +65,38 @@ export const providerModuleSpec: FlowSpec = {
       .next("SetNeedsTransfer")
       .build();
 
+    // Lambda returns missingSlot="true" when neither provider name nor specialty+zip was captured.
     const compareFound = new CompareActionBuilder("CompareProviderFound")
       .comparisonValue("$.External.found")
       .when(equalsCondition("true"), "PersistProviderResults")
-      .onError("ProviderNotFoundLanguageCheck", "NoMatchingCondition")
+      .onError("CompareProviderMissingSlot", "NoMatchingCondition")
+      .build();
+
+    const compareMissingSlot = new CompareActionBuilder("CompareProviderMissingSlot")
+      .comparisonValue("$.External.missingSlot")
+      .when(equalsCondition("true"), "ProviderMissingSlotLanguageCheck")
+      .onError("ProviderSetLookupNotFound", "NoMatchingCondition")
+      .build();
+
+    const missingSlotLanguageCheck = new CompareActionBuilder("ProviderMissingSlotLanguageCheck")
+      .comparisonValue("$.Attributes.preferredLanguage")
+      .when(equalsCondition("es"), "ProviderMissingSlotSpanish")
+      .onError("ProviderMissingSlotEnglish", "NoMatchingCondition")
+      .build();
+
+    const missingSlotEnglish = new MessageParticipantActionBuilder("ProviderMissingSlotEnglish")
+      .text("To search for a provider, I'll need either the provider's name or their specialty and zip code. Let me connect you with a representative who can help.")
+      .next("SetNeedsTransfer")
+      .build();
+
+    const missingSlotSpanish = new MessageParticipantActionBuilder("ProviderMissingSlotSpanish")
+      .text("Para buscar un proveedor, necesito el nombre del proveedor o su especialidad y código postal. Permítame conectarlo con un representante que pueda ayudarle.")
+      .next("SetNeedsTransfer")
+      .build();
+
+    const setLookupNotFound = new UpdateContactAttributesActionBuilder("ProviderSetLookupNotFound")
+      .attribute("lookupResult", "not_found")
+      .next("ProviderNotFoundLanguageCheck")
       .build();
 
     const persistResults = new UpdateContactAttributesActionBuilder("PersistProviderResults")
@@ -76,12 +114,12 @@ export const providerModuleSpec: FlowSpec = {
 
     // Phone number only — addresses over TTS are not useful to callers.
     const foundEnglish = new MessageParticipantActionBuilder("ProviderFoundEnglish")
-      .text("$.External.name is in-network for your plan. Their phone number is $.External.phone. I can connect you with a representative to schedule an appointment or send you more details.")
+      .text("$.External.name is in your plan's network. Their phone number is $.External.phone.")
       .next("OfferTransferProviderEnglish")
       .build();
 
     const foundSpanish = new MessageParticipantActionBuilder("ProviderFoundSpanish")
-      .text("$.External.name está en la red de su plan. Su número de teléfono es $.External.phone. Puedo conectarlo con un representante para programar una cita o enviarle más detalles.")
+      .text("$.External.name está en la red de su plan. Su número de teléfono es $.External.phone.")
       .next("OfferTransferProviderSpanish")
       .build();
 
@@ -102,7 +140,7 @@ export const providerModuleSpec: FlowSpec = {
       .build();
 
     const offerTransferEnglish = new GetParticipantInputActionBuilder("OfferTransferProviderEnglish")
-      .text("Press 1 to speak with a representative. Press 2 to end the call.")
+      .text("Press 1 to speak with a representative for more information about this provider. Press 2 to end the call.")
       .inputTimeLimitSeconds(8)
       .when(equalsCondition("1"), "SetNeedsTransfer")
       .when(equalsCondition("2"), "EndModule")
@@ -112,7 +150,7 @@ export const providerModuleSpec: FlowSpec = {
       .build();
 
     const offerTransferSpanish = new GetParticipantInputActionBuilder("OfferTransferProviderSpanish")
-      .text("Oprima 1 para hablar con un representante. Oprima 2 para terminar la llamada.")
+      .text("Oprima 1 para hablar con un representante para obtener más información sobre este proveedor. Oprima 2 para terminar la llamada.")
       .inputTimeLimitSeconds(8)
       .when(equalsCondition("1"), "SetNeedsTransfer")
       .when(equalsCondition("2"), "EndModule")
@@ -132,11 +170,18 @@ export const providerModuleSpec: FlowSpec = {
       .startWith(languageCheck)
       .add(bridgeEnglish)
       .add(bridgeSpanish)
+      .add(setLookupAttempted)
       .add(invokeLambda)
+      .add(setLookupError)
       .add(errorLanguageCheck)
       .add(errorEnglish)
       .add(errorSpanish)
       .add(compareFound)
+      .add(compareMissingSlot)
+      .add(missingSlotLanguageCheck)
+      .add(missingSlotEnglish)
+      .add(missingSlotSpanish)
+      .add(setLookupNotFound)
       .add(persistResults)
       .add(foundLanguageCheck)
       .add(foundEnglish)

@@ -42,7 +42,7 @@ export const supportQueueExperienceSpec: FlowSpec = {
       "HoldLoopEnglish",
     )
       .addText(
-        "Please hold while we connect you to the next available agent.",
+        "Please hold while we connect you with the next available member services representative.",
       )
       .build();
 
@@ -50,7 +50,7 @@ export const supportQueueExperienceSpec: FlowSpec = {
       "HoldLoopSpanish",
     )
       .addText(
-        "Por favor espere mientras lo conectamos con el siguiente agente disponible.",
+        "Por favor espere mientras le conectamos con el siguiente representante de servicios para miembros.",
       )
       .build();
 

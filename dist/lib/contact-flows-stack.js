@@ -119,6 +119,7 @@ export class ContactFlowsStack extends cdk.Stack {
                 formularyLookup: props.formularyLookupArn,
                 billingLookup: props.billingLookupArn,
                 procedureLookup: props.procedureLookupArn,
+                identityVerify: props.identityVerifyArn,
             },
             lexBotAliases: {
                 mainInbound: props.lexBotAliasArn,

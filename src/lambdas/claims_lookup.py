@@ -16,7 +16,7 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
     member_id = attrs.get("memberId")
 
     if not claim_id or not member_id:
-        return {"found": "false", "errorMessage": "claimId and memberId are required"}
+        return {"found": "false", "missingSlot": "true", "errorMessage": "claimId and memberId are required"}
 
     response = table.get_item(Key={"claimId": claim_id, "memberId": member_id})
     claim = response.get("Item")

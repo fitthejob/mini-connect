@@ -9,6 +9,7 @@ const parameters = [
     `/mini-connect/${environment}/lambdas/formulary_lookup/object_version`,
     `/mini-connect/${environment}/lambdas/billing_lookup/object_version`,
     `/mini-connect/${environment}/lambdas/procedure_lookup/object_version`,
+    `/mini-connect/${environment}/lambdas/identity_verify/object_version`,
 ];
 async function createPlaceholder(parameterPath) {
     try {

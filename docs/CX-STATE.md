@@ -240,13 +240,9 @@ OVERDUE skips the offer-transfer prompt — past-due balance needs immediate age
 | `provider_lookup` | Provider | "We are happy to assist you with your provider search..." |
 | all others | Member Services | "We are happy to assist you..." |
 
-**Gap:** `[gap]` QueueAtCapacity → silent Disconnect. A caller who completed self-service and was transferred hits a wall if the queue is full — no message, no callback offer, no explanation. Should play a message and offer a callback before disconnecting.
-
 **Gap:** `[gap]` No spoken bridge between the last self-service message and queue transfer. After a module reads back a result (e.g., claim status), there is a brief silence before hold music starts. A short transition — *"Let me connect you with a specialist"* — before `RouteToQueue` would close this gap.
 
-**Gap:** `[gap]` OfferTransfer timeout/no-match in all 5 modules routes to EndModule with `needsTransfer` unset → parent CheckNeedsTransfer sees NoMatchingCondition → silent Disconnect. Callers who don't press in time (bad connection, elderly callers, confusion) are dropped. Should default to SetNeedsTransfer.
-
-**Gap:** `[gap]` Eligibility OfferTransfer timeout/no-match → Disconnect. Same issue as above but in MainInbound directly. Should route to RouteToQueue.
+**Gap:** `[gap]` QueueAtCapacity plays a bilingual message before disconnect but offers no callback. A caller who waited through a full self-service interaction deserves more than "please call back." A queued callback offer is the right resolution.
 
 ---
 
@@ -256,25 +252,21 @@ OVERDUE skips the offer-transfer prompt — past-due balance needs immediate age
 
 ### Agent Workspace API Surface
 
-Most of the agent workspace visual layout is **not exposed via any API** — panel order, tab visibility, and workspace layout are console-only in Connect today. What is programmable:
+Most of the agent workspace visual layout is not exposed via any API — panel order, tab visibility, and workspace layout are console-only in Connect today. What is programmable:
 
-| Capability | API available | IaC via CDK |
-|---|---|---|
-| Step-by-Step Guide views (`CfnView`) | Yes | Yes — this is the primary tool |
-| Routing profiles | Yes | Yes (`CfnRoutingProfile`) |
-| Security profiles | Yes | Yes (`CfnSecurityProfile`) |
-| Quick connects | Yes | Yes (`CfnQuickConnect`) |
-| Agent statuses | Yes | Yes (`CfnAgentStatus`) |
-| Contact Lens real-time alerts | Yes | Yes (`CfnRule`) |
-| Workspace panel layout | No | No |
-| Q in Connect association | No | No |
-| Third-party app workspace layout | Partial | Partial |
+| Capability | API available | IaC via CDK | Status |
+|---|---|---|---|
+| Screen pop via `ShowView` + AWS-managed Detail view | Yes | Flow-only | `[live]` |
+| Custom views (`CfnView`) | Yes | Yes (`CfnView`) | Not used |
+| Routing profiles | Yes | Yes (`CfnRoutingProfile`) | Not configured |
+| Security profiles | Yes | Yes (`CfnSecurityProfile`) | Not configured |
+| Quick connects | Yes | Yes (`CfnQuickConnect`) | Not configured |
+| Agent statuses | Yes | Yes (`CfnAgentStatus`) | Not configured |
+| Contact Lens real-time alerts | Yes | Yes (`CfnRule`) | Not configured |
+| Workspace panel layout | No | No | — |
+| Q in Connect association | No | No | — |
 
-**`CfnView` (Step-by-Step Guides) is where the heavy lifting happens.** It is the only IaC mechanism that controls what agents *see* when they answer — structured caller context, lookup results, and action buttons rendered as a UI card the moment the call connects. Everything else via API is routing and permissions, not visual workspace experience.
-
-**Gap:** `[gap]` Contact attributes (`callReason`, `slotClaimNumber`, `externalStatus`, etc.) are set in the flow and available to agents in the Connect workspace, but no view is configured. Agents see raw attribute names rather than a formatted card. Until `MiniConnect-AgentView` is built, agents must re-ask callers for information the IVR already collected.
-
-Lambda lookup results are now persisted as contact attributes before queue transfer (`externalStatus`, `externalPaidAmount`, `externalDenialReason`, etc. — see `external*` attributes in each module). The data is present; the view to surface it is not yet built.
+The agent screen pop uses the AWS-managed **Detail view** — a global Connect resource available on every instance, referenced by ID in the `ShowView` block with no `CfnView` CDK resource required. `CfnView` is the mechanism for custom-built views; it is not used here.
 
 ---
 
@@ -334,41 +326,44 @@ These gaps exist in the bot design and cannot be fixed in the flow alone. Docume
 - Language selection (English/Spanish)
 - Hours check with bilingual closed message
 - ANI-based caller identification (Customer Profiles)
-- Eligibility self-service (4 outcomes, bilingual)
-- Claims self-service (ClaimsLookup Lambda, 3-outcome branch, bilingual messages)
-- Billing self-service (BillingLookup Lambda, 3-outcome branch, bilingual messages, OVERDUE auto-transfer)
-- Formulary self-service (FormularyLookup Lambda, 3-outcome branch, bilingual messages)
-- Provider network lookup (ProviderLookup Lambda, 2-outcome branch, bilingual messages)
-- Prior authorization check (ProcedureLookup Lambda, 3-outcome branch, bilingual messages, prior-auth-required auto-transfer)
+- Second-factor identity verification — DTMF date-of-birth challenge after ANI lookup; 2 attempts; Lambda compares against DynamoDB member record; Lambda errors fail open
+- Personalized greeting — identified callers hear "Welcome back, [FirstName]"; unidentified callers hear generic greeting
+- Eligibility self-service (4 outcomes, bilingual) — unidentified callers routed to member services with targeted message
+- Claims self-service (ClaimsLookup Lambda, 3-outcome branch, bilingual messages, null-slot detection)
+- Billing self-service (BillingLookup Lambda, 3-outcome branch, bilingual messages, OVERDUE auto-transfer, null-slot detection)
+- Formulary self-service (FormularyLookup Lambda, 3-outcome branch, bilingual messages, null-slot detection)
+- Provider network lookup (ProviderLookup Lambda, 2-outcome branch, bilingual messages, null-slot detection, no overpromise on offer-transfer)
+- Prior authorization check (ProcedureLookup Lambda, 3-outcome branch, bilingual messages, prior-auth-required auto-transfer, null-slot detection)
+- Null-slot targeted messages — all 5 Lambda-backed modules detect empty slots and play intent-specific guidance before routing to agent
+- `lookupAttempted` and `lookupResult` attributes set on all Lambda paths; surfaced in agent screen pop
 - Lambda results persisted as contact attributes before queue transfer (`external*` attributes)
 - All intent capture via Lex (7 intents)
+- Intent re-prompt on no-match — DTMF numbered menu on first Lex failure; member services on second failure
 - Contact attribute storage for agent screen pop
 - Bilingual bridge messages before all Lambda invocations
 - Spoken bridge before benefits queue transfer
+- Transfer bridge message before queue transfer — "Please hold while I connect you with a specialist" before hold music
 - Per-intent queue routing (5 domain queues via RouteToQueue on callReason)
 - Bilingual intent-specific hold experiences (claims, billing, pharmacy, provider, member-services)
+- Support queue experience hold message updated to reference member services representative
 - Agent screen pop at answer time (AWS-managed Detail view via ShowView, 7 intents)
 - Caller name on screen pop — identified callers show first + last name, unidentified show "Unidentified Member"
 - OfferTransfer timeout/no-match routes to queue instead of silent disconnect (all 6 modules)
 - QueueAtCapacity plays bilingual message before disconnect
+- Eligibility module: ACTIVE message includes planId; PENDING message provides actionable timeline guidance
 - Eligibility extracted to EligibilityModule — main inbound flow is now a pure orchestration spine
 
 ### Gaps in live flows
-- No personalized greeting using caller's name from ANI lookup
-- No null-check for missing slot values before Lambda calls — null slot returns `found=false`, indistinguishable from genuine not-found
 - No confirmation of what the IVR understood before looking up (claim numbers, medication names)
-- No spoken bridge between last self-service message and queue transfer (silence before hold music)
 - Medication name normalization — "metformin HCl" and "metformin ER" won't match "metformin" in the formulary
-- Agent screen pop does not surface caller name — Detail view AttributeBar requires a pre-concatenated attribute; `$.Customer.FirstName`/`LastName` are not currently merged into one
+- QueueAtCapacity plays a message but offers no callback
 - Agent screen pop Actions ("Transfer", "End Call") are display-only, not wired to flow routing
 
 ### Not yet implemented (planned)
 - Bedrock post-call summarization — EventBridge on disconnect → Lambda → Bedrock → S3
-- Caller name on agent screen pop — add `UpdateContactAttributes` block before `RouteToQueue` to set a `callerName` attribute from ANI lookup fields
+- Callback on QueueAtCapacity — queued callback offer instead of message + disconnect
 
 ### Future / out of scope
-- Dedicated per-intent queues with skill-based routing
-- Dynamic hold messaging per intent
 - Benefits self-service (requires benefits data model)
 - Lex slot design improvements (DTMF fallbacks, medication synonyms, procedure descriptions)
 - Customer Profiles data ingestion from DynamoDB (AppFlow or stream Lambda)

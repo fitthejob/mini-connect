@@ -17,7 +17,7 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
     plan_id = attrs.get("planId")
 
     if not procedure_code or not plan_id:
-        return {"found": "false", "errorMessage": "procedureCode and planId are required"}
+        return {"found": "false", "missingSlot": "true", "errorMessage": "procedureCode and planId are required"}
 
     response = procedure_codes_table.get_item(Key={"procedureCode": procedure_code})
     procedure = response.get("Item")

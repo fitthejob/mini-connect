@@ -24,10 +24,10 @@ export const supportQueueExperienceSpec = {
             .build();
         // MessageParticipantIteratively loops the hold message until an agent answers
         const holdLoopEnglish = new MessageParticipantIterativelyActionBuilder("HoldLoopEnglish")
-            .addText("Please hold while we connect you to the next available agent.")
+            .addText("Please hold while we connect you with the next available member services representative.")
             .build();
         const holdLoopSpanish = new MessageParticipantIterativelyActionBuilder("HoldLoopSpanish")
-            .addText("Por favor espere mientras lo conectamos con el siguiente agente disponible.")
+            .addText("Por favor espere mientras le conectamos con el siguiente representante de servicios para miembros.")
             .build();
         return new FlowBuilder("SupportQueueExperience")
             .startWith(checkLanguage)

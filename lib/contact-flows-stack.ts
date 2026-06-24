@@ -27,6 +27,7 @@ interface ContactFlowsStackProps extends cdk.StackProps {
   formularyLookupArn: string;
   billingLookupArn: string;
   procedureLookupArn: string;
+  identityVerifyArn: string;
 }
 
 const QUEUE_FLOW_KEYS = [
@@ -178,6 +179,7 @@ export class ContactFlowsStack extends cdk.Stack {
         formularyLookup: props.formularyLookupArn,
         billingLookup: props.billingLookupArn,
         procedureLookup: props.procedureLookupArn,
+        identityVerify: props.identityVerifyArn,
       },
       lexBotAliases: {
         mainInbound: props.lexBotAliasArn,

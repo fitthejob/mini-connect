@@ -69,4 +69,4 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
             "address": str(provider.get("address", "")),
         }
 
-    return {"found": "false", "errorMessage": "providerName or specialty+zipCode required"}
+    return {"found": "false", "missingSlot": "true", "errorMessage": "providerName or specialty+zipCode required"}

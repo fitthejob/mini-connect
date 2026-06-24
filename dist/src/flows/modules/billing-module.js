@@ -13,16 +13,24 @@ export const billingModuleSpec = {
             .build();
         const bridgeEnglish = new MessageParticipantActionBuilder("BillingLookupBridgeEnglish")
             .text("One moment while I pull up your invoice.")
-            .next("InvokeBillingLookup")
+            .next("BillingSetLookupAttempted")
             .build();
         const bridgeSpanish = new MessageParticipantActionBuilder("BillingLookupBridgeSpanish")
             .text("Un momento mientras busco su factura.")
+            .next("BillingSetLookupAttempted")
+            .build();
+        const setLookupAttempted = new UpdateContactAttributesActionBuilder("BillingSetLookupAttempted")
+            .attribute("lookupAttempted", "true")
             .next("InvokeBillingLookup")
             .build();
         const invokeLambda = new InvokeLambdaFunctionActionBuilder("InvokeBillingLookup")
             .lambdaArn(context.refs.lambdaArn("billingLookup"))
             .next("CompareBillingFound")
-            .onError("BillingErrorLanguageCheck")
+            .onError("BillingSetLookupError")
+            .build();
+        const setLookupError = new UpdateContactAttributesActionBuilder("BillingSetLookupError")
+            .attribute("lookupResult", "error")
+            .next("BillingErrorLanguageCheck")
             .build();
         const errorLanguageCheck = new CompareActionBuilder("BillingErrorLanguageCheck")
             .comparisonValue("$.Attributes.preferredLanguage")
@@ -40,7 +48,29 @@ export const billingModuleSpec = {
         const compareFound = new CompareActionBuilder("CompareBillingFound")
             .comparisonValue("$.External.found")
             .when(equalsCondition("true"), "PersistBillingResults")
-            .onError("BillingNotFoundLanguageCheck", "NoMatchingCondition")
+            .onError("CompareBillingMissingSlot", "NoMatchingCondition")
+            .build();
+        const compareMissingSlot = new CompareActionBuilder("CompareBillingMissingSlot")
+            .comparisonValue("$.External.missingSlot")
+            .when(equalsCondition("true"), "BillingMissingSlotLanguageCheck")
+            .onError("BillingSetLookupNotFound", "NoMatchingCondition")
+            .build();
+        const missingSlotLanguageCheck = new CompareActionBuilder("BillingMissingSlotLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "BillingMissingSlotSpanish")
+            .onError("BillingMissingSlotEnglish", "NoMatchingCondition")
+            .build();
+        const missingSlotEnglish = new MessageParticipantActionBuilder("BillingMissingSlotEnglish")
+            .text("To look up your invoice, I'll need your invoice number — you can find it on your billing statement. Let me connect you with a representative who can help.")
+            .next("SetNeedsTransfer")
+            .build();
+        const missingSlotSpanish = new MessageParticipantActionBuilder("BillingMissingSlotSpanish")
+            .text("Para buscar su factura, necesito su número de factura — puede encontrarlo en su estado de cuenta. Permítame conectarlo con un representante que pueda ayudarle.")
+            .next("SetNeedsTransfer")
+            .build();
+        const setLookupNotFound = new UpdateContactAttributesActionBuilder("BillingSetLookupNotFound")
+            .attribute("lookupResult", "not_found")
+            .next("BillingNotFoundLanguageCheck")
             .build();
         const persistResults = new UpdateContactAttributesActionBuilder("PersistBillingResults")
             .attribute("externalStatus", "$.External.status")
@@ -137,11 +167,18 @@ export const billingModuleSpec = {
             .startWith(languageCheck)
             .add(bridgeEnglish)
             .add(bridgeSpanish)
+            .add(setLookupAttempted)
             .add(invokeLambda)
+            .add(setLookupError)
             .add(errorLanguageCheck)
             .add(errorEnglish)
             .add(errorSpanish)
             .add(compareFound)
+            .add(compareMissingSlot)
+            .add(missingSlotLanguageCheck)
+            .add(missingSlotEnglish)
+            .add(missingSlotSpanish)
+            .add(setLookupNotFound)
             .add(persistResults)
             .add(notFoundLanguageCheck)
             .add(notFoundEnglish)

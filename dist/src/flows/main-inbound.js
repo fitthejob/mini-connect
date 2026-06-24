@@ -1,4 +1,4 @@
-import { CompareActionBuilder, ConnectParticipantWithLexBotActionBuilder, DisconnectParticipantActionBuilder, FlowBuilder, GetCustomerProfileActionBuilder, InvokeLambdaFunctionActionBuilder, InvokeFlowModuleActionBuilder, MessageParticipantActionBuilder, SetCustomerQueueFlowActionBuilder, ShowViewActionBuilder, TransferContactToQueueActionBuilder, UpdateContactAttributesActionBuilder, UpdateContactTargetQueueActionBuilder, UpdateContactTextToSpeechVoiceActionBuilder, equalsCondition, } from "connect-flow-builder";
+import { CompareActionBuilder, ConnectParticipantWithLexBotActionBuilder, DisconnectParticipantActionBuilder, FlowBuilder, GetCustomerProfileActionBuilder, GetParticipantInputActionBuilder, InvokeLambdaFunctionActionBuilder, InvokeFlowModuleActionBuilder, MessageParticipantActionBuilder, SetCustomerQueueFlowActionBuilder, ShowViewActionBuilder, TransferContactToQueueActionBuilder, UpdateContactAttributesActionBuilder, UpdateContactTargetQueueActionBuilder, UpdateContactTextToSpeechVoiceActionBuilder, equalsCondition, } from "connect-flow-builder";
 export const mainInboundSpec = {
     key: "mainInbound",
     name: "MainInbound",
@@ -15,7 +15,7 @@ export const mainInboundSpec = {
     ],
     build: (context) => {
         // ── Section 1: Call setup ─────────────────────────────────────────────────
-        // Voice → language selection → hours check → ANI lookup → greeting
+        // Voice → language selection → hours check → ANI lookup → second-factor → greeting
         const setDefaultVoice = new UpdateContactTextToSpeechVoiceActionBuilder("SetDefaultVoice")
             .voice("Joanna")
             .engine("neural")
@@ -50,7 +50,7 @@ export const mainInboundSpec = {
         const checkHours = new InvokeLambdaFunctionActionBuilder("CheckHours")
             .lambdaArn(context.refs.lambdaArn("hrsOfOps"))
             .next("CompareHours")
-            .onError("Greeting")
+            .onError("CheckGreetingPersonalization")
             .build();
         const compareHours = new CompareActionBuilder("CompareHours")
             .comparisonValue("$.External.isBusinessHours")
@@ -85,22 +85,123 @@ export const mainInboundSpec = {
             .responseField("Attributes.planId")
             .responseField("Attributes.coverageStatus")
             .next("SetCallerIdentified")
-            .onError("Greeting", "NoneFoundError")
-            .onError("Greeting", "MultipleFoundError")
-            .onError("Greeting")
+            .onError("CheckGreetingPersonalization", "NoneFoundError")
+            .onError("CheckGreetingPersonalization", "MultipleFoundError")
+            .onError("CheckGreetingPersonalization")
             .build();
         const setCallerIdentified = new UpdateContactAttributesActionBuilder("SetCallerIdentified")
             .attribute("callerIdentified", "true")
-            .next("Greeting")
+            .next("VerifyIdentityCheck")
             .build();
-        const greeting = new MessageParticipantActionBuilder("Greeting")
+        // ── Second-factor identity verification ───────────────────────────────────
+        // Only runs for identified callers (callerIdentified=true).
+        // Collects 8-digit DOB via DTMF, validates against DynamoDB via Lambda.
+        // Two attempts allowed. Lambda errors fail open to Greeting.
+        const verifyIdentityCheck = new CompareActionBuilder("VerifyIdentityCheck")
+            .comparisonValue("$.Attributes.callerIdentified")
+            .when(equalsCondition("true"), "VerifyDobPromptLanguageCheck")
+            .onError("CheckGreetingPersonalization", "NoMatchingCondition")
+            .build();
+        const verifyDobPromptLanguageCheck = new CompareActionBuilder("VerifyDobPromptLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "VerifyDobPromptSpanish")
+            .onError("VerifyDobPromptEnglish", "NoMatchingCondition")
+            .build();
+        const verifyDobPromptEnglish = new GetParticipantInputActionBuilder("VerifyDobPromptEnglish")
+            .text("For your security, please enter your date of birth using your keypad. " +
+            "Enter the month, day, and year. For example, January 15th 1980 would be " +
+            "0 1 1 5 1 9 8 0.")
+            .inputTimeLimitSeconds(15)
+            .onError("StoreVerifyInput", "NoMatchingCondition")
+            .onError("StoreVerifyInput", "InputTimeLimitExceeded")
+            .onError("StoreVerifyInput")
+            .build();
+        const verifyDobPromptSpanish = new GetParticipantInputActionBuilder("VerifyDobPromptSpanish")
+            .text("Por su seguridad, ingrese su fecha de nacimiento usando su teclado. " +
+            "Ingrese mes, día y año. Por ejemplo, el 15 de enero de 1980 sería " +
+            "0 1 1 5 1 9 8 0.")
+            .inputTimeLimitSeconds(15)
+            .onError("StoreVerifyInput", "NoMatchingCondition")
+            .onError("StoreVerifyInput", "InputTimeLimitExceeded")
+            .onError("StoreVerifyInput")
+            .build();
+        // $.StoredCustomerInput holds the DTMF digits collected by GetParticipantInput.
+        const storeVerifyInput = new UpdateContactAttributesActionBuilder("StoreVerifyInput")
+            .attribute("dtmfDateOfBirth", "$.StoredCustomerInput")
+            .next("InvokeIdentityVerify")
+            .build();
+        const invokeIdentityVerify = new InvokeLambdaFunctionActionBuilder("InvokeIdentityVerify")
+            .lambdaArn(context.refs.lambdaArn("identityVerify"))
+            .next("CompareVerified")
+            .onError("CheckGreetingPersonalization")
+            .build();
+        const compareVerified = new CompareActionBuilder("CompareVerified")
+            .comparisonValue("$.External.verified")
+            .when(equalsCondition("true"), "CheckGreetingPersonalization")
+            .onError("CheckVerifyRetry", "NoMatchingCondition")
+            .build();
+        // Allow one retry before locking. verifyAttempt starts unset (falsy);
+        // after the first failure we set it to "2" so the second failure locks.
+        const checkVerifyRetry = new CompareActionBuilder("CheckVerifyRetry")
+            .comparisonValue("$.Attributes.verifyAttempt")
+            .when(equalsCondition("2"), "VerifyLockedLanguageCheck")
+            .onError("IncrementVerifyAttempt", "NoMatchingCondition")
+            .build();
+        const incrementVerifyAttempt = new UpdateContactAttributesActionBuilder("IncrementVerifyAttempt")
+            .attribute("verifyAttempt", "2")
+            .next("VerifyRetryLanguageCheck")
+            .build();
+        const verifyRetryLanguageCheck = new CompareActionBuilder("VerifyRetryLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "VerifyRetrySpanish")
+            .onError("VerifyRetryEnglish", "NoMatchingCondition")
+            .build();
+        const verifyRetryEnglish = new GetParticipantInputActionBuilder("VerifyRetryEnglish")
+            .text("That didn't match our records. Please try again — enter your 8-digit date of birth.")
+            .inputTimeLimitSeconds(15)
+            .onError("StoreVerifyInput", "NoMatchingCondition")
+            .onError("StoreVerifyInput", "InputTimeLimitExceeded")
+            .onError("StoreVerifyInput")
+            .build();
+        const verifyRetrySpanish = new GetParticipantInputActionBuilder("VerifyRetrySpanish")
+            .text("Eso no coincide con nuestros registros. Por favor intente de nuevo — ingrese su fecha de nacimiento de 8 dígitos.")
+            .inputTimeLimitSeconds(15)
+            .onError("StoreVerifyInput", "NoMatchingCondition")
+            .onError("StoreVerifyInput", "InputTimeLimitExceeded")
+            .onError("StoreVerifyInput")
+            .build();
+        const verifyLockedLanguageCheck = new CompareActionBuilder("VerifyLockedLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "VerifyLockedSpanish")
+            .onError("VerifyLockedEnglish", "NoMatchingCondition")
+            .build();
+        const verifyLockedEnglish = new MessageParticipantActionBuilder("VerifyLockedEnglish")
+            .text("We were unable to verify your identity. For your security, please call back " +
+            "or visit our website to confirm your account information.")
+            .next("Disconnect")
+            .build();
+        const verifyLockedSpanish = new MessageParticipantActionBuilder("VerifyLockedSpanish")
+            .text("No pudimos verificar su identidad. Por su seguridad, por favor llame de nuevo " +
+            "o visite nuestro sitio web para confirmar la información de su cuenta.")
+            .next("Disconnect")
+            .build();
+        // ── Greeting ──────────────────────────────────────────────────────────────
+        // Personalized for identified callers, generic otherwise.
+        const checkGreetingPersonalization = new CompareActionBuilder("CheckGreetingPersonalization")
+            .comparisonValue("$.Attributes.callerIdentified")
+            .when(equalsCondition("true"), "GreetingPersonalized")
+            .onError("GreetingGeneric", "NoMatchingCondition")
+            .build();
+        const greetingPersonalized = new MessageParticipantActionBuilder("GreetingPersonalized")
+            .text("Welcome back, $.Customer.FirstName.")
+            .next("SetIntentPromptLanguage")
+            .build();
+        const greetingGeneric = new MessageParticipantActionBuilder("GreetingGeneric")
             .text("Welcome to Mini Connect.")
             .next("SetIntentPromptLanguage")
             .build();
         // ── Section 2: Intent capture ─────────────────────────────────────────────
         // Language branch → Lex intent prompt → SetIntentXxx → module dispatch
-        // Lex locale must be set statically — it cannot be passed dynamically,
-        // so a language branch selects the correct locale block.
         const setIntentPromptLanguage = new CompareActionBuilder("SetIntentPromptLanguage")
             .comparisonValue("$.Attributes.preferredLanguage")
             .when(equalsCondition("es"), "IntentPromptSpanish")
@@ -116,14 +217,49 @@ export const mainInboundSpec = {
             .whenIntentEquals("BillingIntent", "SetIntentBilling")
             .onInputTimeLimitExceeded(nextOnNoMatch)
             .onNoMatchingCondition(nextOnNoMatch);
-        const intentPromptEnglish = intentBranches("CheckCallerIdentified")(new ConnectParticipantWithLexBotActionBuilder("IntentPromptEnglish")
+        const intentPromptEnglish = intentBranches("IntentRetryLanguageCheck")(new ConnectParticipantWithLexBotActionBuilder("IntentPromptEnglish")
             .text("How can I help you today? You can say things like: check my claim status, benefits question, prior authorization, find a provider, prescription help, check eligibility, or billing question.")
             .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
             .sessionAttribute("x-amz-lex:locale-id", "en_US")).build();
-        const intentPromptSpanish = intentBranches("CheckCallerIdentified")(new ConnectParticipantWithLexBotActionBuilder("IntentPromptSpanish")
+        const intentPromptSpanish = intentBranches("IntentRetryLanguageCheck")(new ConnectParticipantWithLexBotActionBuilder("IntentPromptSpanish")
             .text("¿Cómo puedo ayudarle hoy? Puede decir: estado de reclamación, pregunta sobre beneficios, autorización previa, buscar proveedor, ayuda con receta, verificar elegibilidad, o pregunta de facturación.")
             .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
             .sessionAttribute("x-amz-lex:locale-id", "es_US")).build();
+        // ── Intent re-prompt (DTMF fallback on Lex no-match) ─────────────────────
+        // One retry with a numbered DTMF menu. Second failure routes to member services.
+        const intentRetryLanguageCheck = new CompareActionBuilder("IntentRetryLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "IntentRetrySpanish")
+            .onError("IntentRetryEnglish", "NoMatchingCondition")
+            .build();
+        const intentRetryEnglish = new GetParticipantInputActionBuilder("IntentRetryEnglish")
+            .text("I didn't catch that. Press 1 for claims, 2 for billing, 3 for prescriptions, " +
+            "4 for providers, 5 for eligibility, or press 0 to speak with a representative.")
+            .inputTimeLimitSeconds(10)
+            .when(equalsCondition("1"), "SetIntentClaims")
+            .when(equalsCondition("2"), "SetIntentBilling")
+            .when(equalsCondition("3"), "SetIntentPrescription")
+            .when(equalsCondition("4"), "SetIntentProviderLookup")
+            .when(equalsCondition("5"), "SetIntentEligibility")
+            .when(equalsCondition("0"), "CheckCallerIdentified")
+            .onError("CheckCallerIdentified", "InputTimeLimitExceeded")
+            .onError("CheckCallerIdentified", "NoMatchingCondition")
+            .onError("CheckCallerIdentified")
+            .build();
+        const intentRetrySpanish = new GetParticipantInputActionBuilder("IntentRetrySpanish")
+            .text("No entendí su solicitud. Oprima 1 para reclamaciones, 2 para facturación, 3 para recetas, " +
+            "4 para proveedores, 5 para elegibilidad, o oprima 0 para hablar con un representante.")
+            .inputTimeLimitSeconds(10)
+            .when(equalsCondition("1"), "SetIntentClaims")
+            .when(equalsCondition("2"), "SetIntentBilling")
+            .when(equalsCondition("3"), "SetIntentPrescription")
+            .when(equalsCondition("4"), "SetIntentProviderLookup")
+            .when(equalsCondition("5"), "SetIntentEligibility")
+            .when(equalsCondition("0"), "CheckCallerIdentified")
+            .onError("CheckCallerIdentified", "InputTimeLimitExceeded")
+            .onError("CheckCallerIdentified", "NoMatchingCondition")
+            .onError("CheckCallerIdentified")
+            .build();
         // ── Section 3: Module dispatch ────────────────────────────────────────────
         // One SetIntentXxx + InvokeXxxModule pair per intent.
         // All modules signal agent-needed via needsTransfer=true → CheckNeedsTransfer.
@@ -193,8 +329,28 @@ export const mainInboundSpec = {
             .build();
         const setIntentEligibility = new UpdateContactAttributesActionBuilder("SetIntentEligibility")
             .attribute("callReason", "eligibility")
-            .attribute("slotMemberId", "$.Lex.Slots.MemberId")
-            .next("InvokeEligibilityModule")
+            .next("CheckEligibilityIdentified")
+            .build();
+        // Eligibility reads coverageStatus from ANI lookup — unidentified callers have no data.
+        const checkEligibilityIdentified = new CompareActionBuilder("CheckEligibilityIdentified")
+            .comparisonValue("$.Attributes.callerIdentified")
+            .when(equalsCondition("true"), "InvokeEligibilityModule")
+            .onError("EligibilityUnidentifiedLanguageCheck", "NoMatchingCondition")
+            .build();
+        const eligibilityUnidentifiedLanguageCheck = new CompareActionBuilder("EligibilityUnidentifiedLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "EligibilityUnidentifiedSpanish")
+            .onError("EligibilityUnidentifiedEnglish", "NoMatchingCondition")
+            .build();
+        const eligibilityUnidentifiedEnglish = new MessageParticipantActionBuilder("EligibilityUnidentifiedEnglish")
+            .text("I wasn't able to find your account by phone number. Let me connect you with a " +
+            "representative who can verify your identity and check your coverage.")
+            .next("CheckCallerIdentified")
+            .build();
+        const eligibilityUnidentifiedSpanish = new MessageParticipantActionBuilder("EligibilityUnidentifiedSpanish")
+            .text("No pude encontrar su cuenta por número de teléfono. Permítame conectarlo con un " +
+            "representante que pueda verificar su identidad y revisar su cobertura.")
+            .next("CheckCallerIdentified")
             .build();
         const invokeEligibilityModule = new InvokeFlowModuleActionBuilder("InvokeEligibilityModule")
             .flowModuleId(context.refs.flowId("eligibilityModule"))
@@ -212,7 +368,7 @@ export const mainInboundSpec = {
             .onError("CheckCallerIdentified")
             .build();
         // ── Section 4: Post-module routing ────────────────────────────────────────
-        // needsTransfer check → caller name → screen pop → queue transfer
+        // needsTransfer check → caller name → transfer bridge → screen pop → queue transfer
         // Modules set needsTransfer=true when the caller needs an agent.
         // Caller chose to end from an offer-transfer prompt → Disconnect.
         const checkNeedsTransfer = new CompareActionBuilder("CheckNeedsTransfer")
@@ -229,10 +385,24 @@ export const mainInboundSpec = {
             .build();
         const setCallerName = new UpdateContactAttributesActionBuilder("SetCallerName")
             .attribute("callerName", "$.Customer.FirstName $.Customer.LastName")
-            .next("RouteToQueue")
+            .next("TransferBridgeLanguageCheck")
             .build();
         const setCallerNameUnknown = new UpdateContactAttributesActionBuilder("SetCallerNameUnknown")
             .attribute("callerName", "Unidentified Member")
+            .next("TransferBridgeLanguageCheck")
+            .build();
+        // Bridge message between self-service result and hold music.
+        const transferBridgeLanguageCheck = new CompareActionBuilder("TransferBridgeLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "TransferBridgeSpanish")
+            .onError("TransferBridgeEnglish", "NoMatchingCondition")
+            .build();
+        const transferBridgeEnglish = new MessageParticipantActionBuilder("TransferBridgeEnglish")
+            .text("Please hold while I connect you with a specialist.")
+            .next("RouteToQueue")
+            .build();
+        const transferBridgeSpanish = new MessageParticipantActionBuilder("TransferBridgeSpanish")
+            .text("Por favor espere mientras le conecto con un especialista.")
             .next("RouteToQueue")
             .build();
         // Route to the ShowView screen pop for the caller's intent, then to the
@@ -282,6 +452,8 @@ export const mainInboundSpec = {
             { Label: "Paid Amount", Value: "$.Attributes.externalPaidAmount" },
             { Label: "Denial Reason", Value: "$.Attributes.externalDenialReason" },
             { Label: "Date of Service", Value: "$.Attributes.externalDateOfService" },
+            { Label: "Lookup Attempted", Value: "$.Attributes.lookupAttempted" },
+            { Label: "Lookup Result", Value: "$.Attributes.lookupResult" },
         ], "SetClaimsQueueFlow");
         const showBillingView = buildShowView("ShowBillingView", "Billing Inquiry", [
             { Label: "Call Reason", Value: "$.Attributes.callReason" },
@@ -292,6 +464,8 @@ export const mainInboundSpec = {
             { Label: "Date Issued", Value: "$.Attributes.externalDateIssued" },
             { Label: "Due Date", Value: "$.Attributes.externalDueDate" },
             { Label: "Description", Value: "$.Attributes.externalDescription" },
+            { Label: "Lookup Attempted", Value: "$.Attributes.lookupAttempted" },
+            { Label: "Lookup Result", Value: "$.Attributes.lookupResult" },
         ], "SetBillingQueueFlow");
         const showFormularyView = buildShowView("ShowFormularyView", "Prescription Formulary", [
             { Label: "Call Reason", Value: "$.Attributes.callReason" },
@@ -302,6 +476,8 @@ export const mainInboundSpec = {
             { Label: "Tier", Value: "$.Attributes.externalTier" },
             { Label: "Copay", Value: "$.Attributes.externalCopay" },
             { Label: "Requires Prior Auth", Value: "$.Attributes.externalRequiresPriorAuth" },
+            { Label: "Lookup Attempted", Value: "$.Attributes.lookupAttempted" },
+            { Label: "Lookup Result", Value: "$.Attributes.lookupResult" },
         ], "SetPharmacyQueueFlow");
         const showProviderView = buildShowView("ShowProviderView", "Provider Network Lookup", [
             { Label: "Call Reason", Value: "$.Attributes.callReason" },
@@ -312,6 +488,8 @@ export const mainInboundSpec = {
             { Label: "Name", Value: "$.Attributes.externalName" },
             { Label: "Phone", Value: "$.Attributes.externalPhone" },
             { Label: "In-Network", Value: "$.Attributes.externalInNetwork" },
+            { Label: "Lookup Attempted", Value: "$.Attributes.lookupAttempted" },
+            { Label: "Lookup Result", Value: "$.Attributes.lookupResult" },
         ], "SetProviderQueueFlow");
         const showPriorAuthView = buildShowView("ShowPriorAuthView", "Prior Authorization", [
             { Label: "Call Reason", Value: "$.Attributes.callReason" },
@@ -321,6 +499,8 @@ export const mainInboundSpec = {
             { Label: "Covered", Value: "$.Attributes.externalCovered" },
             { Label: "Requires Prior Auth", Value: "$.Attributes.externalRequiresPriorAuth" },
             { Label: "Description", Value: "$.Attributes.externalDescription" },
+            { Label: "Lookup Attempted", Value: "$.Attributes.lookupAttempted" },
+            { Label: "Lookup Result", Value: "$.Attributes.lookupResult" },
         ], "SetPharmacyQueueFlow");
         const showEligibilityView = buildShowView("ShowEligibilityView", "Eligibility Check", [
             { Label: "Call Reason", Value: "$.Attributes.callReason" },
@@ -421,11 +601,34 @@ export const mainInboundSpec = {
             .add(closedMessageSpanish)
             .add(lookupByPhone)
             .add(setCallerIdentified)
-            .add(greeting)
+            // Second-factor verification
+            .add(verifyIdentityCheck)
+            .add(verifyDobPromptLanguageCheck)
+            .add(verifyDobPromptEnglish)
+            .add(verifyDobPromptSpanish)
+            .add(storeVerifyInput)
+            .add(invokeIdentityVerify)
+            .add(compareVerified)
+            .add(checkVerifyRetry)
+            .add(incrementVerifyAttempt)
+            .add(verifyRetryLanguageCheck)
+            .add(verifyRetryEnglish)
+            .add(verifyRetrySpanish)
+            .add(verifyLockedLanguageCheck)
+            .add(verifyLockedEnglish)
+            .add(verifyLockedSpanish)
+            // Greeting
+            .add(checkGreetingPersonalization)
+            .add(greetingPersonalized)
+            .add(greetingGeneric)
             // Section 2: Intent capture
             .add(setIntentPromptLanguage)
             .add(intentPromptEnglish)
             .add(intentPromptSpanish)
+            // Intent re-prompt
+            .add(intentRetryLanguageCheck)
+            .add(intentRetryEnglish)
+            .add(intentRetrySpanish)
             // Section 3: Module dispatch
             .add(setIntentClaims)
             .add(invokeClaimsModule)
@@ -440,6 +643,10 @@ export const mainInboundSpec = {
             .add(setIntentPrescription)
             .add(invokeFormularyModule)
             .add(setIntentEligibility)
+            .add(checkEligibilityIdentified)
+            .add(eligibilityUnidentifiedLanguageCheck)
+            .add(eligibilityUnidentifiedEnglish)
+            .add(eligibilityUnidentifiedSpanish)
             .add(invokeEligibilityModule)
             .add(setIntentBilling)
             .add(invokeBillingModule)
@@ -448,6 +655,9 @@ export const mainInboundSpec = {
             .add(checkCallerIdentified)
             .add(setCallerName)
             .add(setCallerNameUnknown)
+            .add(transferBridgeLanguageCheck)
+            .add(transferBridgeEnglish)
+            .add(transferBridgeSpanish)
             .add(routeToQueue)
             .add(showClaimsView)
             .add(showBillingView)

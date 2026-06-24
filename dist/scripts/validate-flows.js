@@ -82,7 +82,7 @@ async function main() {
     const connect = new ConnectClient({ region: REGION });
     console.log(`\nResolving bindings from CloudFormation (env: ${env})...\n`);
     const instanceId = await getStackOutput(cfn, "MiniConnect-Instance", `ConnectInstanceId${env}`);
-    const [supportQueueArn, claimsQueueArn, billingQueueArn, pharmacyQueueArn, providerQueueArn, memberServicesQueueArn, hrsOfOpsArn, memberLookupArn, lexBotAliasArn, claimsLookupArn, providerLookupArn, formularyLookupArn, billingLookupArn, procedureLookupArn,] = await Promise.all([
+    const [supportQueueArn, claimsQueueArn, billingQueueArn, pharmacyQueueArn, providerQueueArn, memberServicesQueueArn, hrsOfOpsArn, memberLookupArn, identityVerifyArn, lexBotAliasArn, claimsLookupArn, providerLookupArn, formularyLookupArn, billingLookupArn, procedureLookupArn,] = await Promise.all([
         getStackOutput(cfn, "MiniConnect-Queues", `SupportQueueArn${env}`),
         getStackOutput(cfn, "MiniConnect-Queues", `ClaimsQueue${env}Arn`),
         getStackOutput(cfn, "MiniConnect-Queues", `BillingQueue${env}Arn`),
@@ -91,6 +91,7 @@ async function main() {
         getStackOutput(cfn, "MiniConnect-Queues", `MemberServicesQueue${env}Arn`),
         getStackOutput(cfn, "MiniConnect-Lambda", `HrsOfOpsHandlerArn${env}`),
         getStackOutput(cfn, "MiniConnect-Lambda", `MemberLookupHandlerArn${env}`),
+        getStackOutput(cfn, "MiniConnect-Lambda", `IdentityVerifyHandlerArn${env}`),
         getStackOutput(cfn, "MiniConnect-Lex", `BotAliasArn${env}`),
         getStackOutput(cfn, "MiniConnect-Claims", `ClaimsLookupHandlerArn${env}`),
         getStackOutput(cfn, "MiniConnect-Providers", `ProviderLookupHandlerArn${env}`),
@@ -174,6 +175,7 @@ async function main() {
         lambdas: {
             hrsOfOps: hrsOfOpsArn,
             memberLookup: memberLookupArn,
+            identityVerify: identityVerifyArn,
             claimsLookup: claimsLookupArn,
             providerLookup: providerLookupArn,
             formularyLookup: formularyLookupArn,

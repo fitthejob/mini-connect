@@ -56,6 +56,7 @@ const bindings: FlowBindings = {
     formularyLookup: "${Lambda.formularyLookup.Arn}",
     billingLookup: "${Lambda.billingLookup.Arn}",
     procedureLookup: "${Lambda.procedureLookup.Arn}",
+    identityVerify: "${Lambda.identityVerify.Arn}",
   },
 };
 

@@ -39,7 +39,7 @@ export const eligibilityModuleSpec: FlowSpec = {
       .build();
 
     const activeEnglish = new MessageParticipantActionBuilder("EligibilityActiveEnglish")
-      .text("Your coverage is currently active. You have full access to your benefits under your current plan.")
+      .text("Your $.Attributes.planId coverage is currently active. You have full access to your plan benefits.")
       .next("OfferTransferEligibilityEnglish")
       .build();
 
@@ -49,7 +49,7 @@ export const eligibilityModuleSpec: FlowSpec = {
       .build();
 
     const pendingEnglish = new MessageParticipantActionBuilder("EligibilityPendingEnglish")
-      .text("Your coverage is currently pending. It may take a few business days to become active.")
+      .text("Your coverage is pending and not yet active. It typically takes a few business days to process. A representative can give you a more specific timeline.")
       .next("OfferTransferEligibilityEnglish")
       .build();
 
@@ -59,7 +59,7 @@ export const eligibilityModuleSpec: FlowSpec = {
       .build();
 
     const activeSpanish = new MessageParticipantActionBuilder("EligibilityActiveSpanish")
-      .text("Su cobertura está actualmente activa. Tiene acceso completo a sus beneficios bajo su plan actual.")
+      .text("Su cobertura de $.Attributes.planId está actualmente activa. Tiene acceso completo a los beneficios de su plan.")
       .next("OfferTransferEligibilitySpanish")
       .build();
 
@@ -69,7 +69,7 @@ export const eligibilityModuleSpec: FlowSpec = {
       .build();
 
     const pendingSpanish = new MessageParticipantActionBuilder("EligibilityPendingSpanish")
-      .text("Su cobertura está actualmente pendiente. Puede tardar algunos días hábiles en activarse.")
+      .text("Su cobertura está pendiente y aún no está activa. Generalmente tarda unos días hábiles en procesarse. Un representante puede darle un plazo más específico.")
       .next("OfferTransferEligibilitySpanish")
       .build();
 

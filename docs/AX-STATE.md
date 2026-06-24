@@ -44,12 +44,13 @@ All 7 intents render the same structural layout with intent-specific content:
 
 **AttributeBar (top strip — always visible)**
 
-| Label | Source attribute |
-|-------|-----------------|
-| Member ID | `$.Attributes.memberId` |
-| Plan | `$.Attributes.planId` |
-| Coverage | `$.Attributes.coverageStatus` |
-| Language | `$.Attributes.preferredLanguage` |
+| Label | Source attribute | Notes |
+|-------|-----------------|-------|
+| Caller | `$.Attributes.callerName` | First + last name from ANI lookup, or "Unidentified Member" |
+| Member ID | `$.Attributes.memberId` | Empty when caller not identified |
+| Plan | `$.Attributes.planId` | Empty when caller not identified |
+| Coverage | `$.Attributes.coverageStatus` | Empty when caller not identified |
+| Language | `$.Attributes.preferredLanguage` | Always present (`en` or `es`) |
 
 **Sections body**
 
@@ -181,7 +182,7 @@ Each view has two `DataSection` panels:
 | Member ID | `memberId` | From ANI lookup |
 | Plan | `planId` | From ANI lookup |
 
-**Agent context:** Eligibility is self-served inline with no Lambda — coverage status comes directly from the ANI lookup. SUSPENDED callers were auto-transferred. ACTIVE/PENDING callers who pressed 1 have follow-up questions. The agent already has all the information that was read to the caller.
+**Agent context:** Eligibility is handled by `EligibilityModule` with no Lambda — coverage status comes directly from the ANI lookup result. SUSPENDED callers were auto-transferred with no choice offered. ACTIVE/PENDING callers who pressed 1 have follow-up questions. The agent has all the information that was read to the caller.
 
 ---
 
@@ -210,9 +211,11 @@ All contact attributes set during the IVR are available in the agent workspace's
 | `preferredLanguage` | MainInbound | `en` or `es` |
 | `callReason` | SetIntentXxx blocks | Intent identifier |
 | `needsTransfer` | Modules | `true` when agent needed |
-| `memberId` | ANI lookup | Health plan member ID |
-| `planId` | ANI lookup | Plan identifier |
-| `coverageStatus` | ANI lookup | ACTIVE / SUSPENDED / PENDING |
+| `callerIdentified` | SetCallerIdentified | `true` when ANI lookup found a profile |
+| `callerName` | SetCallerName / SetCallerNameUnknown | First + last name, or "Unidentified Member" |
+| `memberId` | ANI lookup | Empty when caller not identified |
+| `planId` | ANI lookup | Empty when caller not identified |
+| `coverageStatus` | ANI lookup | Empty when caller not identified |
 
 ### Attributes present when Lex captured a slot
 
@@ -227,6 +230,15 @@ All contact attributes set during the IVR are available in the agent workspace's
 | `slotZipCode` | Provider |
 | `slotProcedureCode` | Prior Auth |
 | `slotServiceType` | Benefits |
+
+### Attributes present when Lambda lookup was attempted
+
+| Attribute | Set by | Values | Notes |
+|-----------|--------|--------|-------|
+| `lookupAttempted` | All 5 Lambda-backed modules | `"true"` | Set before the Lambda invocation; absent when slot was null (lookup never ran) |
+| `lookupResult` | All 5 Lambda-backed modules | `"not_found"` / `"error"` | Set on failure paths only; absent on success (external* attributes will be populated) |
+
+These two attributes together allow agents to immediately distinguish: (1) IVR tried the lookup and found nothing, (2) IVR tried and errored, (3) IVR never ran the lookup (null slot). All three look like blank external* fields without this context. Both are surfaced in the Lookup Result section of all 5 intent screen pops.
 
 ### Attributes present when Lambda lookup succeeded
 
@@ -284,11 +296,9 @@ Each domain queue plays an intent-specific hold message. Agents don't hear this,
 
 ### Screen pop gaps
 
-The AttributeBar `Caller` field shows the caller's first and last name when the ANI lookup identified them, or **"Unidentified Member"** when the lookup found no profile. This is set by `CheckCallerIdentified` → `SetCallerName` / `SetCallerNameUnknown` before `RouteToQueue`. Agents immediately know whether they're speaking with an identified member or an unknown caller.
+**Gap:** `[gap]` When the ANI lookup found no profile, the Caller field shows "Unidentified Member" but `memberId`, `planId`, and `coverageStatus` are all blank. No additional signal distinguishes a complete profile miss from a found profile with missing fields — both look like empty attributes to the agent.
 
-**Gap:** `[gap]` If the ANI lookup found no profile, `memberId`, `planId`, and `coverageStatus` are all empty in the AttributeBar alongside "Unidentified Member". No additional indicator distinguishes a profile miss from a data gap within a found profile.
-
-**Gap:** `[gap]` If a Lex slot was null (caller didn't provide a claim number, invoice number, etc.), the corresponding slot attribute is empty and the Lambda returned `found=false`. The agent sees blank slot fields and blank result fields — no indication of whether the lookup was attempted. Adding a `lookupAttempted` attribute would help agents distinguish "IVR didn't try" from "IVR tried and failed."
+**Resolved:** `[live]` `lookupAttempted` and `lookupResult` attributes are now set by all 5 Lambda-backed modules before Lambda invocation and on failure paths. The screen pop Lookup Result section surfaces both. Agents can now distinguish null-slot (lookup never ran), not-found (lookup ran, record absent), and error (lookup ran, Lambda failed).
 
 **Gap:** `[gap]` The Detail view `Actions` buttons ("Transfer", "End Call") are rendered in the view but are not wired to any flow logic. They are display elements only — the call has already been transferred to the agent by the time the view renders. These buttons could be wired to a step-by-step guide flow to trigger follow-up actions (e.g., initiate a callback, open a case), but that requires a separate guide flow and `SetEventFlow` configuration.
 
@@ -317,7 +327,6 @@ The AttributeBar `Caller` field shows the caller's first and last name when the 
 
 ### Gaps in live agent experience
 - No additional indicator when caller was unrecognized beyond "Unidentified Member" label — remaining AttributeBar fields (memberId, planId, coverage) are blank
-- No indicator when Lex slot was null vs. lookup genuinely returned not-found
 - View Action buttons not wired to follow-up flows
 - No IaC routing profiles (all agents on default)
 - No IaC security profiles

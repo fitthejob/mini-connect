@@ -19,6 +19,7 @@ interface LambdaStackProps extends cdk.StackProps {
 export class LambdaStack extends cdk.Stack {
   readonly hrsOfOpsHandler: lambda.Function;
   readonly memberLookupHandler: lambda.Function;
+  readonly identityVerifyHandler: lambda.Function;
   constructor(scope: Construct, id: string, props: LambdaStackProps) {
     super(scope, id, props);
 
@@ -102,6 +103,46 @@ export class LambdaStack extends cdk.Stack {
     new cdk.CfnOutput(this, `MemberLookupHandlerArn-${props.envName}`, {
       value: this.memberLookupHandler.functionArn,
       description: "ARN of the member lookup Lambda handler",
+    });
+
+    this.identityVerifyHandler = new lambda.Function(
+      this,
+      `IdentityVerifyHandler-${props.envName}`,
+      {
+        runtime: lambda.Runtime.PYTHON_3_13,
+        handler: "identity_verify.handler",
+        code: lambda.Code.fromBucket(
+          props.s3Stack.lambdaArtifactBucket,
+          "identity_verify.zip",
+          ssm.StringParameter.valueFromLookup(
+            this,
+            `/mini-connect/${props.envName}/lambdas/identity_verify/object_version`,
+          ),
+        ),
+        timeout: cdk.Duration.seconds(15),
+        logGroup: new logs.LogGroup(this, `IdentityVerifyLogGroup-${props.envName}`, {
+          retention: logs.RetentionDays.ONE_MONTH,
+          encryptionKey: props.kmsStack.memberDataKey,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }),
+        environment: {
+          MEMBER_TABLE_NAME: props.dynamoDbStack.memberTable.tableName,
+        },
+        environmentEncryption: props.kmsStack.memberDataKey,
+        deadLetterQueue: dlq,
+      },
+    );
+    this.identityVerifyHandler.grantInvoke(
+      new iam.ServicePrincipal("connect.amazonaws.com", {
+        conditions: {
+          StringEquals: { "aws:SourceAccount": cdk.Stack.of(this).account },
+        },
+      }),
+    );
+    props.dynamoDbStack.memberTable.grantReadData(this.identityVerifyHandler);
+    new cdk.CfnOutput(this, `IdentityVerifyHandlerArn-${props.envName}`, {
+      value: this.identityVerifyHandler.functionArn,
+      description: "ARN of the identity verification Lambda handler",
     });
   }
 }

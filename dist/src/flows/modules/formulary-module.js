@@ -13,16 +13,24 @@ export const formularyModuleSpec = {
             .build();
         const bridgeEnglish = new MessageParticipantActionBuilder("FormularyLookupBridgeEnglish")
             .text("One moment while I check your plan's formulary.")
-            .next("InvokeFormularyLookup")
+            .next("FormularySetLookupAttempted")
             .build();
         const bridgeSpanish = new MessageParticipantActionBuilder("FormularyLookupBridgeSpanish")
             .text("Un momento mientras verifico el formulario de su plan.")
+            .next("FormularySetLookupAttempted")
+            .build();
+        const setLookupAttempted = new UpdateContactAttributesActionBuilder("FormularySetLookupAttempted")
+            .attribute("lookupAttempted", "true")
             .next("InvokeFormularyLookup")
             .build();
         const invokeLambda = new InvokeLambdaFunctionActionBuilder("InvokeFormularyLookup")
             .lambdaArn(context.refs.lambdaArn("formularyLookup"))
             .next("CompareFormularyFound")
-            .onError("FormularyErrorLanguageCheck")
+            .onError("FormularySetLookupError")
+            .build();
+        const setLookupError = new UpdateContactAttributesActionBuilder("FormularySetLookupError")
+            .attribute("lookupResult", "error")
+            .next("FormularyErrorLanguageCheck")
             .build();
         const errorLanguageCheck = new CompareActionBuilder("FormularyErrorLanguageCheck")
             .comparisonValue("$.Attributes.preferredLanguage")
@@ -40,7 +48,29 @@ export const formularyModuleSpec = {
         const compareFound = new CompareActionBuilder("CompareFormularyFound")
             .comparisonValue("$.External.found")
             .when(equalsCondition("true"), "PersistFormularyResults")
-            .onError("FormularyNotFoundLanguageCheck", "NoMatchingCondition")
+            .onError("CompareFormularyMissingSlot", "NoMatchingCondition")
+            .build();
+        const compareMissingSlot = new CompareActionBuilder("CompareFormularyMissingSlot")
+            .comparisonValue("$.External.missingSlot")
+            .when(equalsCondition("true"), "FormularyMissingSlotLanguageCheck")
+            .onError("FormularySetLookupNotFound", "NoMatchingCondition")
+            .build();
+        const missingSlotLanguageCheck = new CompareActionBuilder("FormularyMissingSlotLanguageCheck")
+            .comparisonValue("$.Attributes.preferredLanguage")
+            .when(equalsCondition("es"), "FormularyMissingSlotSpanish")
+            .onError("FormularyMissingSlotEnglish", "NoMatchingCondition")
+            .build();
+        const missingSlotEnglish = new MessageParticipantActionBuilder("FormularyMissingSlotEnglish")
+            .text("To check your formulary coverage, I'll need the name of the medication. Let me connect you with a representative who can help.")
+            .next("SetNeedsTransfer")
+            .build();
+        const missingSlotSpanish = new MessageParticipantActionBuilder("FormularyMissingSlotSpanish")
+            .text("Para verificar la cobertura de su formulario, necesito el nombre del medicamento. Permítame conectarlo con un representante que pueda ayudarle.")
+            .next("SetNeedsTransfer")
+            .build();
+        const setLookupNotFound = new UpdateContactAttributesActionBuilder("FormularySetLookupNotFound")
+            .attribute("lookupResult", "not_found")
+            .next("FormularyNotFoundLanguageCheck")
             .build();
         const persistResults = new UpdateContactAttributesActionBuilder("PersistFormularyResults")
             .attribute("externalMedicationName", "$.External.medicationName")
@@ -131,11 +161,18 @@ export const formularyModuleSpec = {
             .startWith(languageCheck)
             .add(bridgeEnglish)
             .add(bridgeSpanish)
+            .add(setLookupAttempted)
             .add(invokeLambda)
+            .add(setLookupError)
             .add(errorLanguageCheck)
             .add(errorEnglish)
             .add(errorSpanish)
             .add(compareFound)
+            .add(compareMissingSlot)
+            .add(missingSlotLanguageCheck)
+            .add(missingSlotEnglish)
+            .add(missingSlotSpanish)
+            .add(setLookupNotFound)
             .add(persistResults)
             .add(notFoundLanguageCheck)
             .add(compareCovered)

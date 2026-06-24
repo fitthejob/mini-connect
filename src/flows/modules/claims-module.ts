@@ -25,18 +25,28 @@ export const claimsModuleSpec: FlowSpec = {
 
     const bridgeEnglish = new MessageParticipantActionBuilder("ClaimsLookupBridgeEnglish")
       .text("One moment while I look up that claim.")
-      .next("InvokeClaimsLookup")
+      .next("ClaimsSetLookupAttempted")
       .build();
 
     const bridgeSpanish = new MessageParticipantActionBuilder("ClaimsLookupBridgeSpanish")
       .text("Un momento mientras busco esa reclamación.")
+      .next("ClaimsSetLookupAttempted")
+      .build();
+
+    const setLookupAttempted = new UpdateContactAttributesActionBuilder("ClaimsSetLookupAttempted")
+      .attribute("lookupAttempted", "true")
       .next("InvokeClaimsLookup")
       .build();
 
     const invokeLambda = new InvokeLambdaFunctionActionBuilder("InvokeClaimsLookup")
       .lambdaArn(context.refs.lambdaArn("claimsLookup"))
       .next("CompareClaimsFound")
-      .onError("ClaimsErrorLanguageCheck")
+      .onError("ClaimsSetLookupError")
+      .build();
+
+    const setLookupError = new UpdateContactAttributesActionBuilder("ClaimsSetLookupError")
+      .attribute("lookupResult", "error")
+      .next("ClaimsErrorLanguageCheck")
       .build();
 
     const errorLanguageCheck = new CompareActionBuilder("ClaimsErrorLanguageCheck")
@@ -55,10 +65,39 @@ export const claimsModuleSpec: FlowSpec = {
       .next("SetNeedsTransfer")
       .build();
 
+    // found=false covers two cases: missing slot and genuine not-found.
+    // Lambda sets missingSlot="true" when a required slot was absent.
     const compareFound = new CompareActionBuilder("CompareClaimsFound")
       .comparisonValue("$.External.found")
       .when(equalsCondition("true"), "PersistClaimsResults")
-      .onError("ClaimsNotFoundLanguageCheck", "NoMatchingCondition")
+      .onError("CompareClaimsMissingSlot", "NoMatchingCondition")
+      .build();
+
+    const compareMissingSlot = new CompareActionBuilder("CompareClaimsMissingSlot")
+      .comparisonValue("$.External.missingSlot")
+      .when(equalsCondition("true"), "ClaimsMissingSlotLanguageCheck")
+      .onError("ClaimsSetLookupNotFound", "NoMatchingCondition")
+      .build();
+
+    const missingSlotLanguageCheck = new CompareActionBuilder("ClaimsMissingSlotLanguageCheck")
+      .comparisonValue("$.Attributes.preferredLanguage")
+      .when(equalsCondition("es"), "ClaimsMissingSlotSpanish")
+      .onError("ClaimsMissingSlotEnglish", "NoMatchingCondition")
+      .build();
+
+    const missingSlotEnglish = new MessageParticipantActionBuilder("ClaimsMissingSlotEnglish")
+      .text("To look up your claim status, I'll need your claim number — you can find it on your Explanation of Benefits. Let me connect you with a representative who can help.")
+      .next("SetNeedsTransfer")
+      .build();
+
+    const missingSlotSpanish = new MessageParticipantActionBuilder("ClaimsMissingSlotSpanish")
+      .text("Para buscar el estado de su reclamación, necesito su número de reclamación — puede encontrarlo en su Explicación de Beneficios. Permítame conectarlo con un representante que pueda ayudarle.")
+      .next("SetNeedsTransfer")
+      .build();
+
+    const setLookupNotFound = new UpdateContactAttributesActionBuilder("ClaimsSetLookupNotFound")
+      .attribute("lookupResult", "not_found")
+      .next("ClaimsNotFoundLanguageCheck")
       .build();
 
     const persistResults = new UpdateContactAttributesActionBuilder("PersistClaimsResults")
@@ -173,11 +212,18 @@ export const claimsModuleSpec: FlowSpec = {
       .startWith(languageCheck)
       .add(bridgeEnglish)
       .add(bridgeSpanish)
+      .add(setLookupAttempted)
       .add(invokeLambda)
+      .add(setLookupError)
       .add(errorLanguageCheck)
       .add(errorEnglish)
       .add(errorSpanish)
       .add(compareFound)
+      .add(compareMissingSlot)
+      .add(missingSlotLanguageCheck)
+      .add(missingSlotEnglish)
+      .add(missingSlotSpanish)
+      .add(setLookupNotFound)
       .add(persistResults)
       .add(notFoundLanguageCheck)
       .add(notFoundEnglish)
