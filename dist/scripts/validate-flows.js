@@ -114,7 +114,7 @@ async function main() {
     });
     ;
     // Render modules with Lambda bindings — push to module sandbox for validation
-    const moduleKeys = ["claimsModule", "billingModule", "formularyModule", "providerModule", "priorAuthModule"];
+    const moduleKeys = ["claimsModule", "billingModule", "formularyModule", "providerModule", "priorAuthModule", "eligibilityModule"];
     const moduleCatalog = flowCatalog.filter((s) => moduleKeys.includes(s.key));
     const moduleBindings = {
         lambdas: {
@@ -131,7 +131,7 @@ async function main() {
         bindings: moduleBindings,
     });
     // Resolve queue flow ARNs and module IDs from deployed ContactFlows stack.
-    const [supportQueueExperienceFlowArn, claimsQueueExperienceFlowArn, billingQueueExperienceFlowArn, pharmacyQueueExperienceFlowArn, providerQueueExperienceFlowArn, memberServicesQueueExperienceFlowArn, claimsModuleArn, billingModuleArn, formularyModuleArn, providerModuleArn, priorAuthModuleArn,] = await Promise.all([
+    const [supportQueueExperienceFlowArn, claimsQueueExperienceFlowArn, billingQueueExperienceFlowArn, pharmacyQueueExperienceFlowArn, providerQueueExperienceFlowArn, memberServicesQueueExperienceFlowArn, claimsModuleArn, billingModuleArn, formularyModuleArn, providerModuleArn, priorAuthModuleArn, eligibilityModuleArn,] = await Promise.all([
         getStackOutput(cfn, "MiniConnect-ContactFlows", `supportQueueExperienceFlowArn${env}`),
         getStackOutput(cfn, "MiniConnect-ContactFlows", `claimsQueueExperienceFlowArn${env}`),
         getStackOutput(cfn, "MiniConnect-ContactFlows", `billingQueueExperienceFlowArn${env}`),
@@ -143,6 +143,7 @@ async function main() {
         getStackOutput(cfn, "MiniConnect-ContactFlows", `formularyModuleFlowId${env}`).catch(() => "placeholder"),
         getStackOutput(cfn, "MiniConnect-ContactFlows", `providerModuleFlowId${env}`).catch(() => "placeholder"),
         getStackOutput(cfn, "MiniConnect-ContactFlows", `priorAuthModuleFlowId${env}`).catch(() => "placeholder"),
+        getStackOutput(cfn, "MiniConnect-ContactFlows", `eligibilityModuleFlowId${env}`).catch(() => "placeholder"),
     ]);
     // Render full catalog with real bindings
     const bindings = {
@@ -168,6 +169,7 @@ async function main() {
             formularyModule: formularyModuleArn,
             providerModule: providerModuleArn,
             priorAuthModule: priorAuthModuleArn,
+            eligibilityModule: eligibilityModuleArn,
         },
         lambdas: {
             hrsOfOps: hrsOfOpsArn,

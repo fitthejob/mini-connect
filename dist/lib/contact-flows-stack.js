@@ -16,6 +16,7 @@ const MODULE_KEYS = [
     "formularyModule",
     "providerModule",
     "priorAuthModule",
+    "eligibilityModule",
 ];
 function requireArtifact(artifacts, key) {
     const artifact = artifacts.find((candidate) => candidate.key === key);

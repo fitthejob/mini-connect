@@ -3,7 +3,10 @@ cdk.out/
 .staging/
 *.tsbuildinfo
 CLAUDE.md
-docs/
+docs/*
+!docs/CX-STATE.md
+!docs/AX-STATE.md
+!docs/FLOW-BIBLE.md
 scripts/seed-customer-profiles.ts
 scripts/seed-backend-data.ts
 scripts/teardown.ts

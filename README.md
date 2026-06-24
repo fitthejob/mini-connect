@@ -1,311 +1,224 @@
-# mini-connect (A reference implementation of the connect-flow-builder package)
+# mini-connect
 
-`mini-connect` is a minimal CDK consumer repo that proves how `connect-flow-builder` can be integrated into a real deployment path.
+A reference CDK implementation of a bilingual Amazon Connect contact center for a health plan use case. Demonstrates a mature IVR architecture including ANI-based member identification, Lex-driven intent routing, domain-specific Lambda integrations, Customer Profiles, per-intent queue routing with skill-based hold messaging, and an agent screen pop at answer time.
 
-Live repos:
+Built around [`connect-flow-builder`](https://github.com/fitthejob/connect-flow-builder) — a vendored TypeScript package that provides a type-safe DSL for authoring Amazon Connect contact flows as code.
 
-- Reference CDK consumer: [fitthejob/mini-connect](https://github.com/fitthejob/mini-connect)
-- Package repo: [fitthejob/connect-flow-builder](https://github.com/fitthejob/connect-flow-builder)
+---
 
-It is not the `connect-flow-builder` package itself, and it is not intended to be a polished starter kit. The purpose of `mini-connect` is to serve as a reference integration:
+## What It Does
 
-- `connect-flow-builder` owns flow authoring, validation, and staged rendering
-- `mini-connect` owns AWS resource wiring, CDK stacks, and deployment
-- the current implementation proves that separation against a live Amazon Connect instance
+A caller dials in. Before they say a word, their phone number is matched against a Customer Profiles domain to identify them as a health plan member. Their name, member ID, plan, and coverage status are available for the rest of the call. They select a language (English or Spanish), hear a greeting, and state their intent.
 
-## What This Repo Proves
+Seven intents are handled:
 
-This repo demonstrates a working Amazon Connect deployment path where:
+| Intent | Self-service | Outcome |
+|--------|-------------|---------|
+| Claims status | ✅ ClaimsLookup Lambda | Reads back status, paid/billed amount, denial reason |
+| Billing inquiry | ✅ BillingLookup Lambda | Reads back invoice status, amount, due date |
+| Prescription formulary | ✅ FormularyLookup Lambda | Reads back tier, copay, prior auth requirement |
+| Provider network | ✅ ProviderLookup Lambda | Confirms in-network status and phone number |
+| Prior authorization | ✅ ProcedureLookup Lambda | Reads back coverage and auth requirement |
+| Eligibility check | ✅ ANI lookup (no Lambda) | Reads back coverage status from profile |
+| Benefits inquiry | Queue transfer | Routes to benefits specialist |
 
-- a standalone TypeScript package defines flows as code
-- a CDK app creates the Connect instance and related resources
-- the CDK flow stack renders and deploys flow JSON from the same flow catalog
-- cross-flow and external resource bindings are resolved at deployment time
+Every self-service path is handled by a domain `CONTACT_FLOW_MODULE`. The main inbound flow is a pure orchestration spine — it dispatches to modules and owns no domain logic.
 
-The current proven path includes:
+When a call transfers to an agent, a screen pop fires at answer time using the AWS-managed Detail view. The agent sees the caller's name (or "Unidentified Member" for unrecognized callers), member ID, plan, coverage status, preferred language, and the complete self-service result — without re-asking the caller a single question.
 
-- a Connect instance stack
-- a queue and hours-of-operation stack
-- a contact flow stack
-- a customer queue flow plus a main inbound contact flow
-- a working inbound queue handoff pattern using:
-  `Set customer queue flow` -> `Set working queue` -> `TransferContactToQueue`
+---
 
-## Repo Shape
+## Architecture
 
-```text
-mini-connect/
-|- bin/
-|  |- mini-connect.ts
-|- lib/
-|  |- connect-instance-stack.ts
-|  |- connect-queues-stack.ts
-|  |- contact-flows-stack.ts
-|- scripts/
-|  |- stage-contact-flows.ts
-|- src/
-|  |- flows/
-|     |- catalog.ts
-|     |- support-queue-experience.ts
-|     |- main-inbound.ts
-|- connect-flow-builder/
+### Stack topology (17 stacks)
+
+```
+MiniConnect-Kms
+  ├── MiniConnect-Instance
+  │     └── MiniConnect-Queues (6 domain queues + hours-of-operation)
+  ├── MiniConnect-DynamoDB (member identity table)
+  ├── MiniConnect-S3 (Lambda artifact bucket)
+  │     └── MiniConnect-Lambda (hrs_of_ops, member_lookup)
+  ├── MiniConnect-BackendData (5 DynamoDB tables)
+  │     ├── MiniConnect-Claims
+  │     ├── MiniConnect-Providers
+  │     ├── MiniConnect-Formulary
+  │     ├── MiniConnect-Billing
+  │     └── MiniConnect-ProcedureCodes
+  ├── MiniConnect-CustomerProfiles
+  ├── MiniConnect-Lex (bilingual bot, en_US + es_US)
+  └── MiniConnect-MonitoringOps / MonitoringDev
+                                        ↓
+                          MiniConnect-ContactFlows
 ```
 
-## Integration Model
+### Flow catalog (13 flows)
 
-This repo vendors `connect-flow-builder` locally as:
+**CONTACT_FLOW:**
+- `MainInbound` — 5-section orchestration spine: call setup → intent capture → module dispatch → post-module routing → queue setup
 
-```text
-connect-flow-builder/
+**CUSTOMER_QUEUE (6 hold experiences, one per domain queue):**
+- `ClaimsQueueExperience`, `BillingQueueExperience`, `PharmacyQueueExperience`, `ProviderQueueExperience`, `MemberServicesQueueExperience`, `SupportQueueExperience`
+
+**CONTACT_FLOW_MODULE (6 domain modules + 1 fallback):**
+- `ClaimsModule`, `BillingModule`, `FormularyModule`, `ProviderModule`, `PriorAuthModule`, `EligibilityModule`
+
+### Per-intent queue routing
+
+Every intent routes to its own domain queue with an intent-specific bilingual hold message. Agents receive calls from the correct specialist queue without additional triage.
+
+| callReason | Queue | Hold message |
+|---|---|---|
+| `claims_status` | Claims | "We are happy to assist you with your claim..." |
+| `billing` | Billing | "We are happy to assist you with your billing question..." |
+| `prescription`, `prior_authorization` | Pharmacy | "We are happy to assist you with your prescription..." |
+| `provider_lookup` | Provider | "We are happy to assist you with your provider search..." |
+| `eligibility`, `benefits_inquiry`, fallback | MemberServices | "We are happy to assist you..." |
+
+### Data security model
+
+All data access uses the ANI-verified `memberId` and `planId` from the Customer Profiles lookup as authorization keys. Callers never prove identity with a PIN — the phone number is the identity assertion.
+
+Claims and billing use composite DynamoDB keys `(claimId, memberId)` and `(invoiceId, memberId)`. A caller cannot retrieve another member's record even if they know the ID. Formulary lookups are always scoped to the caller's plan — callers never need to state their plan.
+
+### Lambda deployment pattern
+
+All Lambdas use an S3/SSM staging pattern rather than `fromAsset`. Python source is zipped, uploaded to S3, and the version ID written to SSM. CDK reads the version ID at synth time and deploys the specific object version. This creates an explicit gate between artifact staging and infrastructure deployment.
+
+### Two-layer flow rendering
+
+Flows are rendered twice from the same catalog:
+
+1. **Staging** — placeholder bindings for human review (`.staging/contact-flows/dev/`)
+2. **Deployment** — real ARNs from deployed stacks, via `CfnContactFlow` resources
+
+### Pre-deploy validation
+
+`npm run validate:flows` renders all 13 flows with real ARNs from CloudFormation and pushes each to a dedicated sandbox flow on the Connect instance. Connect validates the full API contract — block type support per flow type, required parameters, error transition requirements — and returns specific error messages in seconds rather than discovering failures through CloudTrail after a deploy.
+
+---
+
+## Key Commands
+
+```bash
+# Build
+npm run build
+
+# Validate all flows against Connect sandbox (run before every deploy)
+npm run validate:flows
+
+# Stage flow artifacts for human review
+npm run stage:flows
+
+# Deploy individual stacks
+npm run deploy:queues
+npm run deploy:flows
+npm run deploy:lambdas
+
+# Deploy everything
+npm run deploy:all:dev
+
+# Seed data
+npm run seed:profiles -- dev
+npm run seed:backend -- dev
 ```
 
-and consumes it through the dependency entry in `package.json`:
+---
+
+## First-Time Setup
+
+```bash
+# 1. Bootstrap CDK
+cdk bootstrap
+
+# 2. Create SSM placeholder parameters
+npm run bootstrap:ssm -- dev
+
+# 3. Deploy KMS and S3 first
+npm run deploy:kms
+npm run deploy:s3
+
+# 4. Stage and deploy all Lambda artifacts
+npm run stage:lambdas -- dev all
+npm run deploy:all:dev
+
+# 5. Associate Customer Profiles domain with Connect instance
+#    (manual console step — AWS does not expose this via API)
+#    See docs/RUNBOOK.md → Customer Profiles → One-time console setup
+
+# 6. Seed data
+npm run seed:profiles -- dev
+npm run seed:backend -- dev
+```
+
+---
+
+## Repo Structure
+
+```
+bin/
+  mini-connect.ts              CDK app entry — wires all 17 stacks
+
+lib/
+  connect-instance-stack.ts
+  connect-queues-stack.ts      6 domain queues + hours-of-operation
+  contact-flows-stack.ts       Renders and deploys all 13 flows
+  agent-view-stack.ts          (planned)
+  lambda-stack.ts
+  lex-stack.ts
+  kms-stack.ts / s3-stack.ts / dynamodb-stack.ts
+  customer-profiles-stack.ts
+  backend/                     5 domain Lambda stacks
+  observability/               CloudWatch dashboards + SNS alarms
+
+src/flows/
+  catalog.ts                   Registers all 13 flow specs
+  main-inbound.ts              Primary inbound CONTACT_FLOW (5 sections)
+  support-queue-experience.ts  Generic fallback CUSTOMER_QUEUE
+  queue-experiences/           5 domain CUSTOMER_QUEUE hold flows
+  modules/                     6 domain CONTACT_FLOW_MODULE specs
+
+src/lambdas/                   Python Lambda handlers (7 functions)
+src/bots/                      Lex bot definition (bilingual, 7 intents)
+
+scripts/
+  stage-contact-flows.ts       Renders flows with placeholder bindings
+  validate-flows.ts            Validates all flows against Connect sandboxes
+  stage-lambdas.ts             Zips, uploads, stages Lambda artifacts
+  bootstrap-ssm.ts             Creates SSM placeholder parameters
+
+docs/
+  FLOW-BIBLE.md                Block-by-block caller experience documentation
+  CX-STATE.md                  Caller experience gaps and planned improvements
+  AX-STATE.md                  Agent experience documentation and gaps
+  RUNBOOK.md                   Deploy, teardown, rollback, debugging
+
+connect-flow-builder/          Vendored local package (modified for bug fixes)
+```
+
+---
+
+## connect-flow-builder
+
+`connect-flow-builder` is vendored as a local package dependency:
 
 ```json
 "connect-flow-builder": "file:./connect-flow-builder"
 ```
 
-That local package provides:
+This repo has modified the package to fix Connect API contract issues discovered through live deployment — auto-injection of required error branches, DTMF input constraints, Customer Profile response field format, `CONTACT_FLOW_MODULE` support, and a layered BFS layout algorithm that assigns canvas positions to every block. The package has 147 tests covering all action builders, validators, and catalog rendering.
 
-- typed Amazon Connect action builders
-- flow validation
-- flow catalog rendering
-- staged flow artifact output
+The separation of concerns is intentional:
+- `connect-flow-builder` owns flow authoring, validation, layout, and staged rendering
+- `mini-connect` owns AWS resource wiring, CDK stacks, Lambda code, and deployment
 
-This repo then adds the consumer-specific pieces:
+---
 
-- Connect instance creation
-- queue creation
-- flow deployment with `aws-cdk-lib/aws-connect`
-- environment-specific resource bindings
+## Planned
 
-If you want the standalone package itself, rather than the reference CDK integration, see:
-
-- [fitthejob/connect-flow-builder](https://github.com/fitthejob/connect-flow-builder)
-
-## Architecture Connection Points
-
-This is the most important architectural split in the repo.
-
-### Package-side flow authoring layer
-
-These files come from the vendored `connect-flow-builder` package and provide the reusable flow-authoring engine:
-
-- `connect-flow-builder/src/index.ts`
-  Public package exports consumed by this repo
-
-- `connect-flow-builder/src/core/`
-  Core flow model, JSON rendering, and validation
-
-- `connect-flow-builder/src/staging/`
-  Flow catalog rendering and staged artifact support
-
-- `connect-flow-builder/src/actions/`
-  Typed Amazon Connect action builders
-
-`mini-connect` consumes the `connect-flow-builder` runtime architecture, and does not modify it.
-
-### Consumer-side flow definition layer
-
-These files define the actual flows for this reference consumer:
-
-- `src/flows/support-queue-experience.ts`
-  Defines the `CUSTOMER_QUEUE` flow using package builders
-
-- `src/flows/main-inbound.ts`
-  Defines the `CONTACT_FLOW` using package builders and cross-flow references
-
-- `src/flows/catalog.ts`
-  Registers those flow specs into one `FlowCatalog`
-
-This is the point where consumer-owned business flow definitions start.
-
-### Consumer-side staging layer
-
-- `scripts/stage-contact-flows.ts`
-  Imports `renderFlowCatalog` and `writeRenderedFlowCatalog` from `connect-flow-builder`, renders the consumer `flowCatalog`, and writes review artifacts into `.staging/contact-flows/<env>/`
-
-This is the review boundary between authored flow code and deployment.
-
-### Consumer-side deployment layer
-
-- `lib/connect-instance-stack.ts`
-  Creates the Amazon Connect instance and exports the instance ARN
-
-- `lib/connect-queues-stack.ts`
-  Creates hours of operation and the support queue, then exports the queue ARN
-
-- `lib/contact-flows-stack.ts`
-  Imports the consumer `flowCatalog`, calls `renderFlowCatalog(...)`, injects deploy-time bindings, and creates `CfnContactFlow` resources
-
-- `bin/mini-connect.ts`
-  Wires the three stacks together and passes instance and queue outputs downstream
-
-This is the point where authored flows become deployable AWS resources.
-
-## End-to-End File-Level Flow
-
-The current build path looks like this:
-
-```text
-src/flows/support-queue-experience.ts
-src/flows/main-inbound.ts
-  -> src/flows/catalog.ts
-  -> scripts/stage-contact-flows.ts        review-time render path
-  -> lib/contact-flows-stack.ts            deploy-time render path
-  -> aws-cdk-lib/aws-connect CfnContactFlow
-  -> deployed Amazon Connect flows
-```
-
-A slightly more detailed view is:
-
-```text
-connect-flow-builder/src/index.ts
-  exports FlowBuilder, FlowSpec, renderFlowCatalog, action builders
-
-src/flows/main-inbound.ts
-src/flows/support-queue-experience.ts
-  import from connect-flow-builder
-  define flow specs
-
-src/flows/catalog.ts
-  combines flow specs into one FlowCatalog
-
-scripts/stage-contact-flows.ts
-  renders placeholder-based staged artifacts for review
-
-lib/contact-flows-stack.ts
-  renders the same catalog again with real queue and flow bindings
-  deploys CfnContactFlow resources
-
-bin/mini-connect.ts
-  composes the instance, queue, and flow stacks into one CDK app
-```
-
-## Current Stack Topology
-
-The CDK app currently defines three stacks:
-
-1. `MiniConnect-Instance`
-2. `MiniConnect-Queues`
-3. `MiniConnect-ContactFlows`
-
-The deployment order is:
-
-```text
-MiniConnect-Instance
-  -> MiniConnect-Queues
-  -> MiniConnect-ContactFlows
-```
-
-The contact flow stack depends on the queue stack and the instance stack because it needs:
-
-- the Connect instance ARN
-- the support queue ARN
-- the deployed customer queue flow ARN for inter-flow binding
-
-## Flow Deployment Pattern
-
-The current deployment pattern is:
-
-1. define flow specs in `src/flows/`
-2. stage reviewable artifacts with `scripts/stage-contact-flows.ts`
-3. deploy the customer queue flow first
-4. render the main inbound flow with real queue and flow bindings
-5. deploy the main inbound flow from CDK
-
-The contact flow stack is the current source of truth for the deploy-time integration shape.
-
-## Why The Flow Stack Renders Again
-
-The staging script and the CDK stack both render from the same `flowCatalog`, but they do different jobs:
-
-- `scripts/stage-contact-flows.ts`
-  renders review artifacts using placeholder-style bindings
-
-- `lib/contact-flows-stack.ts`
-  renders deployable flow content using real values from the instance and queue stacks
-
-That separation is intentional. It allows the same authored flow definitions support for both review and deployment without making the `connect-flow-builder` package own CDK behavior.
-
-## Prerequisites
-
-Before running this repo, you should have:
-
-- Node.js installed
-- npm installed
-- AWS credentials for the target account
-- the correct `AWS_PROFILE` selected if you use profiles
-- CDK bootstrapped in the target account and region
-
-A typical profile export looks like:
-
-```bash
-export AWS_PROFILE=my-profile
-```
-
-## Install
-
-From the `mini-connect` repo root:
-
-```bash
-npm install
-```
-
-## Stage Flow Artifacts
-
-To render staged flow artifacts locally:
-
-```bash
-npm run stage:flows
-```
-
-This writes staged output to:
-
-```text
-.staging/contact-flows/dev/
-```
-
-Use staged output for review.
-
-The deployed flow content is ultimately rendered again inside the CDK flow stack using real bindings.
-
-## Synthesize The CDK App
-
-```bash
-npm run cdk:synth
-```
-
-To synth only the flow stack:
-
-```bash
-npx cdk synth MiniConnect-ContactFlows
-```
-
-## Deploy The Current Reference Integration
-
-Deploy the stacks in order:
-
-```bash
-npx cdk deploy MiniConnect-Instance
-npx cdk deploy MiniConnect-Queues
-npx cdk deploy MiniConnect-ContactFlows
-```
-
-## Important Notes
-
-- This repo is a reference integration, not a generic operator product.
-- It is intentionally minimal and currently focused on proving the package-to-CDK boundary.
-- The packaged `connect-flow-builder` repo remains the portable source of truth for flow authoring concerns.
-- This repo remains the consumer-side example of how those flows can be staged, bound, and deployed.
-
-## When To Use This Repo
-
-Use `mini-connect` when you want to:
-
-- understand the intended consumer architecture
-- see how `connect-flow-builder` fits into a CDK deployment path
-- validate the current proven inbound queueing pattern
-- reuse this shape as a starting point for another consumer repo
-
-Do not treat `mini-connect` as a production-ready framework. Treat it as a working reference implementation that uses the `connect-flow-builder` package.
+- **Bedrock post-call summarization** — EventBridge on disconnect → Lambda → Bedrock Claude API with transcript → write summary to S3
+- **Unit tests** — `src/bots/render.ts` and `src/flows/catalog.ts` using Node.js built-in test runner
+- **Routing profiles** — `CfnRoutingProfile` per domain queue for skill-based routing
+- **Null-check for missing Lex slots** — targeted bilingual message when a required slot wasn't captured
+- **Personalized greeting** — use caller's first name from ANI lookup
+- **Callback on queue capacity** — queued callback offer when all agents are busy

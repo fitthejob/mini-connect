@@ -15,6 +15,7 @@ const BLOCK_HEIGHT_MULTIPLIERS = {
     GetParticipantInput: 2,
     Compare: 2,
     GetCustomerProfile: 2,
+    ShowView: 2,
 };
 /**
  * Computes (x, y) canvas positions for every action in the flow using a

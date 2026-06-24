@@ -180,7 +180,7 @@ async function main(): Promise<void> {
   });;
 
   // Render modules with Lambda bindings — push to module sandbox for validation
-  const moduleKeys = ["claimsModule", "billingModule", "formularyModule", "providerModule", "priorAuthModule"];
+  const moduleKeys = ["claimsModule", "billingModule", "formularyModule", "providerModule", "priorAuthModule", "eligibilityModule"];
   const moduleCatalog = flowCatalog.filter((s) => moduleKeys.includes(s.key));
   const moduleBindings: FlowBindings = {
     lambdas: {
@@ -210,6 +210,7 @@ async function main(): Promise<void> {
     formularyModuleArn,
     providerModuleArn,
     priorAuthModuleArn,
+    eligibilityModuleArn,
   ] = await Promise.all([
     getStackOutput(cfn, "MiniConnect-ContactFlows", `supportQueueExperienceFlowArn${env}`),
     getStackOutput(cfn, "MiniConnect-ContactFlows", `claimsQueueExperienceFlowArn${env}`),
@@ -222,6 +223,7 @@ async function main(): Promise<void> {
     getStackOutput(cfn, "MiniConnect-ContactFlows", `formularyModuleFlowId${env}`).catch(() => "placeholder"),
     getStackOutput(cfn, "MiniConnect-ContactFlows", `providerModuleFlowId${env}`).catch(() => "placeholder"),
     getStackOutput(cfn, "MiniConnect-ContactFlows", `priorAuthModuleFlowId${env}`).catch(() => "placeholder"),
+    getStackOutput(cfn, "MiniConnect-ContactFlows", `eligibilityModuleFlowId${env}`).catch(() => "placeholder"),
   ]);
 
   // Render full catalog with real bindings
@@ -247,7 +249,8 @@ async function main(): Promise<void> {
       billingModule:   billingModuleArn,
       formularyModule: formularyModuleArn,
       providerModule:  providerModuleArn,
-      priorAuthModule: priorAuthModuleArn,
+      priorAuthModule:    priorAuthModuleArn,
+      eligibilityModule: eligibilityModuleArn,
     },
     lambdas: {
       hrsOfOps:        hrsOfOpsArn,

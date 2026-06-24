@@ -24,6 +24,7 @@ const BLOCK_HEIGHT_MULTIPLIERS: Partial<Record<FlowActionType, number>> = {
   GetParticipantInput: 2,
   Compare: 2,
   GetCustomerProfile: 2,
+  ShowView: 2,
 };
 
 /**

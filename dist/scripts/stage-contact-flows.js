@@ -29,6 +29,7 @@ const bindings = {
         formularyModule: "${FlowModule.formularyModule.Id}",
         providerModule: "${FlowModule.providerModule.Id}",
         priorAuthModule: "${FlowModule.priorAuthModule.Id}",
+        eligibilityModule: "${FlowModule.eligibilityModule.Id}",
     },
     lexBotAliases: {
         mainInbound: "${LexBot.mainInbound.AliasArn}",

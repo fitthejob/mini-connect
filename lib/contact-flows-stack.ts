@@ -44,6 +44,7 @@ const MODULE_KEYS = [
   "formularyModule",
   "providerModule",
   "priorAuthModule",
+  "eligibilityModule",
 ] as const;
 
 function requireArtifact(

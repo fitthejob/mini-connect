@@ -12,6 +12,7 @@ import { billingModuleSpec } from "./modules/billing-module.js";
 import { formularyModuleSpec } from "./modules/formulary-module.js";
 import { providerModuleSpec } from "./modules/provider-module.js";
 import { priorAuthModuleSpec } from "./modules/prior-auth-module.js";
+import { eligibilityModuleSpec } from "./modules/eligibility-module.js";
 
 export const flowCatalog: FlowCatalog = [
   supportQueueExperienceSpec,
@@ -25,5 +26,6 @@ export const flowCatalog: FlowCatalog = [
   formularyModuleSpec,
   providerModuleSpec,
   priorAuthModuleSpec,
+  eligibilityModuleSpec,
   mainInboundSpec,
 ];

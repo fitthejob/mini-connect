@@ -4,7 +4,6 @@ import {
   DisconnectParticipantActionBuilder,
   FlowBuilder,
   GetCustomerProfileActionBuilder,
-  GetParticipantInputActionBuilder,
   InvokeLambdaFunctionActionBuilder,
   InvokeFlowModuleActionBuilder,
   MessageParticipantActionBuilder,
@@ -18,22 +17,12 @@ import {
   type FlowSpec,
 } from "connect-flow-builder";
 
-// callReason values → queue keys
-// claims_status        → claimsQueue
-// billing              → billingQueue
-// prescription         → pharmacyQueue
-// prior_authorization  → pharmacyQueue
-// provider_lookup      → providerQueue
-// eligibility          → memberServicesQueue
-// benefits_inquiry     → memberServicesQueue
-// (no match / timeout) → memberServicesQueue
-
 export const mainInboundSpec: FlowSpec = {
   key: "mainInbound",
   name: "MainInbound",
   type: "CONTACT_FLOW",
   filename: "main-inbound.json",
-  description: "Primary inbound flow for support.",
+  description: "Primary inbound flow — call setup, intent capture, module dispatch, and queue routing.",
   dependsOnFlows: [
     "supportQueueExperience",
     "claimsQueueExperience",
@@ -43,17 +32,17 @@ export const mainInboundSpec: FlowSpec = {
     "memberServicesQueueExperience",
   ],
   build: (context) => {
-    const setDefaultVoice = new UpdateContactTextToSpeechVoiceActionBuilder(
-      "SetDefaultVoice",
-    )
+
+    // ── Section 1: Call setup ─────────────────────────────────────────────────
+    // Voice → language selection → hours check → ANI lookup → greeting
+
+    const setDefaultVoice = new UpdateContactTextToSpeechVoiceActionBuilder("SetDefaultVoice")
       .voice("Joanna")
       .engine("neural")
       .next("LanguagePrompt")
       .build();
 
-    const languagePrompt = new ConnectParticipantWithLexBotActionBuilder(
-      "LanguagePrompt",
-    )
+    const languagePrompt = new ConnectParticipantWithLexBotActionBuilder("LanguagePrompt")
       .text("For English, press or say 1. Para español, oprima o diga 2.")
       .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
       .whenIntentEquals("EnglishIntent", "SetEnglishAttr")
@@ -62,31 +51,23 @@ export const mainInboundSpec: FlowSpec = {
       .onNoMatchingCondition("CheckHours")
       .build();
 
-    const setEnglishAttr = new UpdateContactAttributesActionBuilder(
-      "SetEnglishAttr",
-    )
+    const setEnglishAttr = new UpdateContactAttributesActionBuilder("SetEnglishAttr")
       .attribute("preferredLanguage", "en")
       .next("SetVoiceEnglish")
       .build();
 
-    const setVoiceEnglish = new UpdateContactTextToSpeechVoiceActionBuilder(
-      "SetVoiceEnglish",
-    )
+    const setVoiceEnglish = new UpdateContactTextToSpeechVoiceActionBuilder("SetVoiceEnglish")
       .voice("Joanna")
       .engine("neural")
       .next("CheckHours")
       .build();
 
-    const setSpanishAttr = new UpdateContactAttributesActionBuilder(
-      "SetSpanishAttr",
-    )
+    const setSpanishAttr = new UpdateContactAttributesActionBuilder("SetSpanishAttr")
       .attribute("preferredLanguage", "es")
       .next("SetVoiceSpanish")
       .build();
 
-    const setVoiceSpanish = new UpdateContactTextToSpeechVoiceActionBuilder(
-      "SetVoiceSpanish",
-    )
+    const setVoiceSpanish = new UpdateContactTextToSpeechVoiceActionBuilder("SetVoiceSpanish")
       .voice("Lupe")
       .engine("neural")
       .next("CheckHours")
@@ -104,33 +85,13 @@ export const mainInboundSpec: FlowSpec = {
       .onError("CheckLanguageForClosed", "NoMatchingCondition")
       .build();
 
-    // ANI lookup — identifies the caller by phone number before they say a word.
-    // All error branches fail open to Greeting so no caller is stranded by a
-    // profile miss. Response fields land at $.Customer.* for the rest of the call.
-    const lookupByPhone = new GetCustomerProfileActionBuilder("LookupByPhone")
-      .identifier("_phone", "$.CustomerEndpoint.Address")
-      .responseField("FirstName")
-      .responseField("LastName")
-      .responseField("Attributes.memberId")
-      .responseField("Attributes.planId")
-      .responseField("Attributes.coverageStatus")
-      .next("Greeting")
-      .onError("Greeting", "NoneFoundError")
-      .onError("Greeting", "MultipleFoundError")
-      .onError("Greeting")
-      .build();
-
-    const checkLanguageForClosed = new CompareActionBuilder(
-      "CheckLanguageForClosed",
-    )
+    const checkLanguageForClosed = new CompareActionBuilder("CheckLanguageForClosed")
       .comparisonValue("$.Attributes.preferredLanguage")
       .when(equalsCondition("es"), "ClosedMessageSpanish")
       .onError("ClosedMessageEnglish", "NoMatchingCondition")
       .build();
 
-    const closedMessageEnglish = new MessageParticipantActionBuilder(
-      "ClosedMessageEnglish",
-    )
+    const closedMessageEnglish = new MessageParticipantActionBuilder("ClosedMessageEnglish")
       .text(
         "Thank you for calling Mini Connect. Our offices are currently closed. " +
         "Our business hours are Monday through Friday, 9am to 5pm Eastern Time. " +
@@ -139,9 +100,7 @@ export const mainInboundSpec: FlowSpec = {
       .next("Disconnect")
       .build();
 
-    const closedMessageSpanish = new MessageParticipantActionBuilder(
-      "ClosedMessageSpanish",
-    )
+    const closedMessageSpanish = new MessageParticipantActionBuilder("ClosedMessageSpanish")
       .text(
         "Gracias por llamar a Mini Connect. Nuestras oficinas están actualmente cerradas. " +
         "Nuestro horario de atención es de lunes a viernes, de 9am a 5pm hora del Este. " +
@@ -150,16 +109,38 @@ export const mainInboundSpec: FlowSpec = {
       .next("Disconnect")
       .build();
 
+    // ANI lookup — identifies the caller by phone number before they say a word.
+    // Success sets $.Customer.* and marks callerIdentified=true for the screen pop.
+    // All error branches fail open to Greeting so no caller is stranded by a miss.
+    const lookupByPhone = new GetCustomerProfileActionBuilder("LookupByPhone")
+      .identifier("_phone", "$.CustomerEndpoint.Address")
+      .responseField("FirstName")
+      .responseField("LastName")
+      .responseField("Attributes.memberId")
+      .responseField("Attributes.planId")
+      .responseField("Attributes.coverageStatus")
+      .next("SetCallerIdentified")
+      .onError("Greeting", "NoneFoundError")
+      .onError("Greeting", "MultipleFoundError")
+      .onError("Greeting")
+      .build();
+
+    const setCallerIdentified = new UpdateContactAttributesActionBuilder("SetCallerIdentified")
+      .attribute("callerIdentified", "true")
+      .next("Greeting")
+      .build();
+
     const greeting = new MessageParticipantActionBuilder("Greeting")
       .text("Welcome to Mini Connect.")
       .next("SetIntentPromptLanguage")
       .build();
 
-    // Branch on preferredLanguage to select the correct Lex locale for intent capture.
-    // Lex locale must be set statically per block — it cannot be passed dynamically.
-    const setIntentPromptLanguage = new CompareActionBuilder(
-      "SetIntentPromptLanguage",
-    )
+    // ── Section 2: Intent capture ─────────────────────────────────────────────
+    // Language branch → Lex intent prompt → SetIntentXxx → module dispatch
+
+    // Lex locale must be set statically — it cannot be passed dynamically,
+    // so a language branch selects the correct locale block.
+    const setIntentPromptLanguage = new CompareActionBuilder("SetIntentPromptLanguage")
       .comparisonValue("$.Attributes.preferredLanguage")
       .when(equalsCondition("es"), "IntentPromptSpanish")
       .onError("IntentPromptEnglish", "NoMatchingCondition")
@@ -167,31 +148,35 @@ export const mainInboundSpec: FlowSpec = {
 
     const intentBranches = (nextOnNoMatch: string) => (builder: ConnectParticipantWithLexBotActionBuilder) =>
       builder
-        .whenIntentEquals("ClaimsStatusIntent", "SetIntentClaims")
-        .whenIntentEquals("BenefitsInquiryIntent", "SetIntentBenefits")
+        .whenIntentEquals("ClaimsStatusIntent",      "SetIntentClaims")
+        .whenIntentEquals("BenefitsInquiryIntent",   "SetIntentBenefits")
         .whenIntentEquals("PriorAuthorizationIntent", "SetIntentPriorAuth")
-        .whenIntentEquals("ProviderLookupIntent", "SetIntentProviderLookup")
-        .whenIntentEquals("PrescriptionIntent", "SetIntentPrescription")
-        .whenIntentEquals("EligibilityIntent", "SetIntentEligibility")
-        .whenIntentEquals("BillingIntent", "SetIntentBilling")
+        .whenIntentEquals("ProviderLookupIntent",    "SetIntentProviderLookup")
+        .whenIntentEquals("PrescriptionIntent",      "SetIntentPrescription")
+        .whenIntentEquals("EligibilityIntent",       "SetIntentEligibility")
+        .whenIntentEquals("BillingIntent",           "SetIntentBilling")
         .onInputTimeLimitExceeded(nextOnNoMatch)
         .onNoMatchingCondition(nextOnNoMatch);
 
-    const intentPromptEnglish = intentBranches("RouteToQueue")(
+    const intentPromptEnglish = intentBranches("CheckCallerIdentified")(
       new ConnectParticipantWithLexBotActionBuilder("IntentPromptEnglish")
         .text("How can I help you today? You can say things like: check my claim status, benefits question, prior authorization, find a provider, prescription help, check eligibility, or billing question.")
         .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
         .sessionAttribute("x-amz-lex:locale-id", "en_US"),
     ).build();
 
-    const intentPromptSpanish = intentBranches("RouteToQueue")(
+    const intentPromptSpanish = intentBranches("CheckCallerIdentified")(
       new ConnectParticipantWithLexBotActionBuilder("IntentPromptSpanish")
         .text("¿Cómo puedo ayudarle hoy? Puede decir: estado de reclamación, pregunta sobre beneficios, autorización previa, buscar proveedor, ayuda con receta, verificar elegibilidad, o pregunta de facturación.")
         .lexV2BotAliasArn(context.refs.lexBotAliasArn("mainInbound"))
         .sessionAttribute("x-amz-lex:locale-id", "es_US"),
     ).build();
 
-    // ── Claims ────────────────────────────────────────────────────────────────
+    // ── Section 3: Module dispatch ────────────────────────────────────────────
+    // One SetIntentXxx + InvokeXxxModule pair per intent.
+    // All modules signal agent-needed via needsTransfer=true → CheckNeedsTransfer.
+    // Module errors skip directly to CheckCallerIdentified (queue routing).
+
     const setIntentClaims = new UpdateContactAttributesActionBuilder("SetIntentClaims")
       .attribute("callReason", "claims_status")
       .attribute("slotClaimNumber", "$.Lex.Slots.ClaimNumber")
@@ -202,17 +187,16 @@ export const mainInboundSpec: FlowSpec = {
     const invokeClaimsModule = new InvokeFlowModuleActionBuilder("InvokeClaimsModule")
       .flowModuleId(context.refs.flowId("claimsModule"))
       .next("CheckNeedsTransfer")
-      .onError("RouteToQueue")
+      .onError("CheckCallerIdentified")
       .build();
 
-    // ── Benefits ──────────────────────────────────────────────────────────────
-    // No Lambda — no backend table for benefits. Routes to queue with context.
     const setIntentBenefits = new UpdateContactAttributesActionBuilder("SetIntentBenefits")
       .attribute("callReason", "benefits_inquiry")
       .attribute("slotServiceType", "$.Lex.Slots.ServiceType")
       .next("BenefitsTransferLanguageCheck")
       .build();
 
+    // Benefits has no backend data — play a bridge and route directly to queue.
     const benefitsTransferLanguageCheck = new CompareActionBuilder("BenefitsTransferLanguageCheck")
       .comparisonValue("$.Attributes.preferredLanguage")
       .when(equalsCondition("es"), "BenefitsTransferSpanish")
@@ -221,15 +205,14 @@ export const mainInboundSpec: FlowSpec = {
 
     const benefitsTransferEnglish = new MessageParticipantActionBuilder("BenefitsTransferEnglish")
       .text("Let me connect you with a benefits specialist.")
-      .next("RouteToQueue")
+      .next("CheckCallerIdentified")
       .build();
 
     const benefitsTransferSpanish = new MessageParticipantActionBuilder("BenefitsTransferSpanish")
       .text("Permítame conectarlo con un especialista en beneficios.")
-      .next("RouteToQueue")
+      .next("CheckCallerIdentified")
       .build();
 
-    // ── Prior Authorization ───────────────────────────────────────────────────
     const setIntentPriorAuth = new UpdateContactAttributesActionBuilder("SetIntentPriorAuth")
       .attribute("callReason", "prior_authorization")
       .attribute("slotProcedureCode", "$.Lex.Slots.ProcedureCode")
@@ -240,10 +223,9 @@ export const mainInboundSpec: FlowSpec = {
     const invokePriorAuthModule = new InvokeFlowModuleActionBuilder("InvokePriorAuthModule")
       .flowModuleId(context.refs.flowId("priorAuthModule"))
       .next("CheckNeedsTransfer")
-      .onError("RouteToQueue")
+      .onError("CheckCallerIdentified")
       .build();
 
-    // ── Provider Lookup ───────────────────────────────────────────────────────
     const setIntentProviderLookup = new UpdateContactAttributesActionBuilder("SetIntentProviderLookup")
       .attribute("callReason", "provider_lookup")
       .attribute("slotSpecialty", "$.Lex.Slots.Specialty")
@@ -255,10 +237,9 @@ export const mainInboundSpec: FlowSpec = {
     const invokeProviderModule = new InvokeFlowModuleActionBuilder("InvokeProviderModule")
       .flowModuleId(context.refs.flowId("providerModule"))
       .next("CheckNeedsTransfer")
-      .onError("RouteToQueue")
+      .onError("CheckCallerIdentified")
       .build();
 
-    // ── Prescription / Formulary ──────────────────────────────────────────────
     const setIntentPrescription = new UpdateContactAttributesActionBuilder("SetIntentPrescription")
       .attribute("callReason", "prescription")
       .attribute("slotMedicationName", "$.Lex.Slots.MedicationName")
@@ -268,99 +249,21 @@ export const mainInboundSpec: FlowSpec = {
     const invokeFormularyModule = new InvokeFlowModuleActionBuilder("InvokeFormularyModule")
       .flowModuleId(context.refs.flowId("formularyModule"))
       .next("CheckNeedsTransfer")
-      .onError("RouteToQueue")
+      .onError("CheckCallerIdentified")
       .build();
 
-    // ── Eligibility (stays inline — no Lambda, reads from ANI lookup result) ──
     const setIntentEligibility = new UpdateContactAttributesActionBuilder("SetIntentEligibility")
       .attribute("callReason", "eligibility")
       .attribute("slotMemberId", "$.Lex.Slots.MemberId")
-      .next("CheckEligibilityLanguage")
+      .next("InvokeEligibilityModule")
       .build();
 
-    const checkEligibilityLanguage = new CompareActionBuilder("CheckEligibilityLanguage")
-      .comparisonValue("$.Attributes.preferredLanguage")
-      .when(equalsCondition("es"), "CheckCoverageStatusSpanish")
-      .onError("CheckCoverageStatusEnglish", "NoMatchingCondition")
+    const invokeEligibilityModule = new InvokeFlowModuleActionBuilder("InvokeEligibilityModule")
+      .flowModuleId(context.refs.flowId("eligibilityModule"))
+      .next("CheckNeedsTransfer")
+      .onError("CheckCallerIdentified")
       .build();
 
-    const checkCoverageStatusEnglish = new CompareActionBuilder("CheckCoverageStatusEnglish")
-      .comparisonValue("$.Customer.Attributes.coverageStatus")
-      .when(equalsCondition("ACTIVE"), "EligibilityActiveEnglish")
-      .when(equalsCondition("SUSPENDED"), "EligibilitySuspendedEnglish")
-      .when(equalsCondition("PENDING"), "EligibilityPendingEnglish")
-      .onError("EligibilityUnknownEnglish", "NoMatchingCondition")
-      .build();
-
-    const checkCoverageStatusSpanish = new CompareActionBuilder("CheckCoverageStatusSpanish")
-      .comparisonValue("$.Customer.Attributes.coverageStatus")
-      .when(equalsCondition("ACTIVE"), "EligibilityActiveSpanish")
-      .when(equalsCondition("SUSPENDED"), "EligibilitySuspendedSpanish")
-      .when(equalsCondition("PENDING"), "EligibilityPendingSpanish")
-      .onError("EligibilityUnknownSpanish", "NoMatchingCondition")
-      .build();
-
-    const eligibilityActiveEnglish = new MessageParticipantActionBuilder("EligibilityActiveEnglish")
-      .text("Your coverage is currently active. You have full access to your benefits under your current plan.")
-      .next("OfferTransferEnglish")
-      .build();
-
-    const eligibilitySuspendedEnglish = new MessageParticipantActionBuilder("EligibilitySuspendedEnglish")
-      .text("Your coverage is currently suspended. Please speak with a representative for assistance.")
-      .next("RouteToQueue")
-      .build();
-
-    const eligibilityPendingEnglish = new MessageParticipantActionBuilder("EligibilityPendingEnglish")
-      .text("Your coverage is currently pending. It may take a few business days to become active.")
-      .next("OfferTransferEnglish")
-      .build();
-
-    const eligibilityUnknownEnglish = new MessageParticipantActionBuilder("EligibilityUnknownEnglish")
-      .text("We were unable to locate your eligibility information. Let me connect you with a representative.")
-      .next("RouteToQueue")
-      .build();
-
-    const eligibilityActiveSpanish = new MessageParticipantActionBuilder("EligibilityActiveSpanish")
-      .text("Su cobertura está actualmente activa. Tiene acceso completo a sus beneficios bajo su plan actual.")
-      .next("OfferTransferSpanish")
-      .build();
-
-    const eligibilitySuspendedSpanish = new MessageParticipantActionBuilder("EligibilitySuspendedSpanish")
-      .text("Su cobertura está actualmente suspendida. Por favor hable con un representante para obtener ayuda.")
-      .next("RouteToQueue")
-      .build();
-
-    const eligibilityPendingSpanish = new MessageParticipantActionBuilder("EligibilityPendingSpanish")
-      .text("Su cobertura está actualmente pendiente. Puede tardar algunos días hábiles en activarse.")
-      .next("OfferTransferSpanish")
-      .build();
-
-    const eligibilityUnknownSpanish = new MessageParticipantActionBuilder("EligibilityUnknownSpanish")
-      .text("No pudimos encontrar su información de elegibilidad. Permítame conectarlo con un representante.")
-      .next("RouteToQueue")
-      .build();
-
-    const offerTransferEnglish = new GetParticipantInputActionBuilder("OfferTransferEnglish")
-      .text("If you have additional questions, press 1 to speak with a representative. Press 2 to end the call.")
-      .inputTimeLimitSeconds(8)
-      .when(equalsCondition("1"), "RouteToQueue")
-      .when(equalsCondition("2"), "Disconnect")
-      .onError("RouteToQueue", "InputTimeLimitExceeded")
-      .onError("RouteToQueue", "NoMatchingCondition")
-      .onError("RouteToQueue")
-      .build();
-
-    const offerTransferSpanish = new GetParticipantInputActionBuilder("OfferTransferSpanish")
-      .text("Si tiene preguntas adicionales, oprima 1 para hablar con un representante. Oprima 2 para terminar la llamada.")
-      .inputTimeLimitSeconds(8)
-      .when(equalsCondition("1"), "RouteToQueue")
-      .when(equalsCondition("2"), "Disconnect")
-      .onError("RouteToQueue", "InputTimeLimitExceeded")
-      .onError("RouteToQueue", "NoMatchingCondition")
-      .onError("RouteToQueue")
-      .build();
-
-    // ── Billing ───────────────────────────────────────────────────────────────
     const setIntentBilling = new UpdateContactAttributesActionBuilder("SetIntentBilling")
       .attribute("callReason", "billing")
       .attribute("slotInvoiceNumber", "$.Lex.Slots.InvoiceNumber")
@@ -370,39 +273,54 @@ export const mainInboundSpec: FlowSpec = {
     const invokeBillingModule = new InvokeFlowModuleActionBuilder("InvokeBillingModule")
       .flowModuleId(context.refs.flowId("billingModule"))
       .next("CheckNeedsTransfer")
-      .onError("RouteToQueue")
+      .onError("CheckCallerIdentified")
       .build();
 
-    // ── Post-module routing ───────────────────────────────────────────────────
-    // Modules set needsTransfer=true when they want an agent; false (or unset) means
-    // the caller chose to end the call from an offer-transfer prompt.
+    // ── Section 4: Post-module routing ────────────────────────────────────────
+    // needsTransfer check → caller name → screen pop → queue transfer
+
+    // Modules set needsTransfer=true when the caller needs an agent.
+    // Caller chose to end from an offer-transfer prompt → Disconnect.
     const checkNeedsTransfer = new CompareActionBuilder("CheckNeedsTransfer")
       .comparisonValue("$.Attributes.needsTransfer")
-      .when(equalsCondition("true"), "RouteToQueue")
+      .when(equalsCondition("true"), "CheckCallerIdentified")
       .onError("Disconnect", "NoMatchingCondition")
       .build();
 
+    // Set callerName for the agent screen pop.
+    // callerIdentified=true only when LookupByPhone succeeded.
+    const checkCallerIdentified = new CompareActionBuilder("CheckCallerIdentified")
+      .comparisonValue("$.Attributes.callerIdentified")
+      .when(equalsCondition("true"), "SetCallerName")
+      .onError("SetCallerNameUnknown", "NoMatchingCondition")
+      .build();
+
+    const setCallerName = new UpdateContactAttributesActionBuilder("SetCallerName")
+      .attribute("callerName", "$.Customer.FirstName $.Customer.LastName")
+      .next("RouteToQueue")
+      .build();
+
+    const setCallerNameUnknown = new UpdateContactAttributesActionBuilder("SetCallerNameUnknown")
+      .attribute("callerName", "Unidentified Member")
+      .next("RouteToQueue")
+      .build();
+
     // Route to the ShowView screen pop for the caller's intent, then to the
-    // matching queue. All unrecognized paths land in member-services.
+    // matching domain queue. Unrecognized paths land in member-services.
     const routeToQueue = new CompareActionBuilder("RouteToQueue")
       .comparisonValue("$.Attributes.callReason")
-      .when(equalsCondition("claims_status"),       "ShowClaimsView")
-      .when(equalsCondition("billing"),             "ShowBillingView")
-      .when(equalsCondition("prescription"),        "ShowFormularyView")
-      .when(equalsCondition("prior_authorization"), "ShowPriorAuthView")
-      .when(equalsCondition("provider_lookup"),     "ShowProviderView")
-      .when(equalsCondition("eligibility"),         "ShowEligibilityView")
-      .when(equalsCondition("benefits_inquiry"),    "ShowBenefitsView")
+      .when(equalsCondition("claims_status"),        "ShowClaimsView")
+      .when(equalsCondition("billing"),              "ShowBillingView")
+      .when(equalsCondition("prescription"),         "ShowFormularyView")
+      .when(equalsCondition("prior_authorization"),  "ShowPriorAuthView")
+      .when(equalsCondition("provider_lookup"),      "ShowProviderView")
+      .when(equalsCondition("eligibility"),          "ShowEligibilityView")
+      .when(equalsCondition("benefits_inquiry"),     "ShowBenefitsView")
       .onError("SetMemberServicesQueueFlow", "NoMatchingCondition")
       .build();
 
-    // ShowView fires the agent screen pop. On any outcome (action selected or
-    // error), routing continues to the queue setup. InvocationTimeLimitSeconds
-    // is set to 1 so the block doesn't hold the call waiting for agent input.
-    // ShowView fires the agent screen pop using the AWS-managed Detail view.
-    // The Detail view ARN is global: arn:aws:connect:region:aws:view/detail.
-    // ViewData entries map to the Detail view's input schema fields.
-    // On any outcome (action selected or error), routing continues to queue setup.
+    // Agent screen pop via AWS-managed Detail view. Fires at answer time.
+    // All outcomes (action selected or error) continue to queue setup.
     const buildShowView = (
       id: string,
       heading: string,
@@ -415,14 +333,15 @@ export const mainInboundSpec: FlowSpec = {
         .invocationTimeLimitSeconds(2)
         .viewData("Heading", heading)
         .viewData("AttributeBar", JSON.stringify([
+          { Label: "Caller",    Value: "$.Attributes.callerName" },
           { Label: "Member ID", Value: "$.Attributes.memberId" },
           { Label: "Plan",      Value: "$.Attributes.planId" },
           { Label: "Coverage",  Value: "$.Attributes.coverageStatus" },
           { Label: "Language",  Value: "$.Attributes.preferredLanguage" },
         ]))
         .viewData("Sections", JSON.stringify([
-          { Heading: "Caller Intent",  Type: "DataSection", Items: intentItems },
-          { Heading: "Lookup Result",  Type: "DataSection", Items: resultItems },
+          { Heading: "Caller Intent", Type: "DataSection", Items: intentItems },
+          { Heading: "Lookup Result", Type: "DataSection", Items: resultItems },
         ]))
         .viewData("Actions", JSON.stringify(["Transfer", "End Call"]))
         .when(equalsCondition("Transfer"), nextBlock)
@@ -433,11 +352,10 @@ export const mainInboundSpec: FlowSpec = {
         .build();
 
     const showClaimsView = buildShowView(
-      "ShowClaimsView",
-      "Claims Status",
+      "ShowClaimsView", "Claims Status",
       [
-        { Label: "Call Reason",    Value: "$.Attributes.callReason" },
-        { Label: "Claim Number",   Value: "$.Attributes.slotClaimNumber" },
+        { Label: "Call Reason",     Value: "$.Attributes.callReason" },
+        { Label: "Claim Number",    Value: "$.Attributes.slotClaimNumber" },
         { Label: "Date of Service", Value: "$.Attributes.slotDateOfService" },
       ],
       [
@@ -451,25 +369,23 @@ export const mainInboundSpec: FlowSpec = {
     );
 
     const showBillingView = buildShowView(
-      "ShowBillingView",
-      "Billing Inquiry",
+      "ShowBillingView", "Billing Inquiry",
       [
         { Label: "Call Reason",    Value: "$.Attributes.callReason" },
         { Label: "Invoice Number", Value: "$.Attributes.slotInvoiceNumber" },
       ],
       [
-        { Label: "Status",       Value: "$.Attributes.externalStatus" },
-        { Label: "Amount",       Value: "$.Attributes.externalAmount" },
-        { Label: "Date Issued",  Value: "$.Attributes.externalDateIssued" },
-        { Label: "Due Date",     Value: "$.Attributes.externalDueDate" },
-        { Label: "Description",  Value: "$.Attributes.externalDescription" },
+        { Label: "Status",      Value: "$.Attributes.externalStatus" },
+        { Label: "Amount",      Value: "$.Attributes.externalAmount" },
+        { Label: "Date Issued", Value: "$.Attributes.externalDateIssued" },
+        { Label: "Due Date",    Value: "$.Attributes.externalDueDate" },
+        { Label: "Description", Value: "$.Attributes.externalDescription" },
       ],
       "SetBillingQueueFlow",
     );
 
     const showFormularyView = buildShowView(
-      "ShowFormularyView",
-      "Prescription Formulary",
+      "ShowFormularyView", "Prescription Formulary",
       [
         { Label: "Call Reason",     Value: "$.Attributes.callReason" },
         { Label: "Medication Name", Value: "$.Attributes.slotMedicationName" },
@@ -485,8 +401,7 @@ export const mainInboundSpec: FlowSpec = {
     );
 
     const showProviderView = buildShowView(
-      "ShowProviderView",
-      "Provider Network Lookup",
+      "ShowProviderView", "Provider Network Lookup",
       [
         { Label: "Call Reason",   Value: "$.Attributes.callReason" },
         { Label: "Provider Name", Value: "$.Attributes.slotProviderName" },
@@ -502,8 +417,7 @@ export const mainInboundSpec: FlowSpec = {
     );
 
     const showPriorAuthView = buildShowView(
-      "ShowPriorAuthView",
-      "Prior Authorization",
+      "ShowPriorAuthView", "Prior Authorization",
       [
         { Label: "Call Reason",    Value: "$.Attributes.callReason" },
         { Label: "Procedure Code", Value: "$.Attributes.slotProcedureCode" },
@@ -518,8 +432,7 @@ export const mainInboundSpec: FlowSpec = {
     );
 
     const showEligibilityView = buildShowView(
-      "ShowEligibilityView",
-      "Eligibility Check",
+      "ShowEligibilityView", "Eligibility Check",
       [
         { Label: "Call Reason", Value: "$.Attributes.callReason" },
       ],
@@ -532,8 +445,7 @@ export const mainInboundSpec: FlowSpec = {
     );
 
     const showBenefitsView = buildShowView(
-      "ShowBenefitsView",
-      "Benefits Inquiry",
+      "ShowBenefitsView", "Benefits Inquiry",
       [
         { Label: "Call Reason",  Value: "$.Attributes.callReason" },
         { Label: "Service Type", Value: "$.Attributes.slotServiceType" },
@@ -542,7 +454,10 @@ export const mainInboundSpec: FlowSpec = {
       "SetMemberServicesQueueFlow",
     );
 
-    // ── Claims ────────────────────────────────────────────────────────────────
+    // ── Section 5: Queue setup ────────────────────────────────────────────────
+    // SetXxxQueueFlow → SetXxxQueue → TransferToQueue (shared)
+    // Each pair sets the domain hold experience and queue ARN.
+
     const setClaimsQueueFlow = new SetCustomerQueueFlowActionBuilder("SetClaimsQueueFlow")
       .customerQueueFlowArn(context.refs.flowArn("claimsQueueExperience"))
       .next("SetClaimsQueue")
@@ -555,7 +470,6 @@ export const mainInboundSpec: FlowSpec = {
       .onError("Disconnect")
       .build();
 
-    // ── Billing ───────────────────────────────────────────────────────────────
     const setBillingQueueFlow = new SetCustomerQueueFlowActionBuilder("SetBillingQueueFlow")
       .customerQueueFlowArn(context.refs.flowArn("billingQueueExperience"))
       .next("SetBillingQueue")
@@ -568,7 +482,6 @@ export const mainInboundSpec: FlowSpec = {
       .onError("Disconnect")
       .build();
 
-    // ── Pharmacy (prescription + prior auth) ──────────────────────────────────
     const setPharmacyQueueFlow = new SetCustomerQueueFlowActionBuilder("SetPharmacyQueueFlow")
       .customerQueueFlowArn(context.refs.flowArn("pharmacyQueueExperience"))
       .next("SetPharmacyQueue")
@@ -581,7 +494,6 @@ export const mainInboundSpec: FlowSpec = {
       .onError("Disconnect")
       .build();
 
-    // ── Provider ──────────────────────────────────────────────────────────────
     const setProviderQueueFlow = new SetCustomerQueueFlowActionBuilder("SetProviderQueueFlow")
       .customerQueueFlowArn(context.refs.flowArn("providerQueueExperience"))
       .next("SetProviderQueue")
@@ -594,7 +506,6 @@ export const mainInboundSpec: FlowSpec = {
       .onError("Disconnect")
       .build();
 
-    // ── Member Services (eligibility, benefits, timeout/no-match) ─────────────
     const setMemberServicesQueueFlow = new SetCustomerQueueFlowActionBuilder("SetMemberServicesQueueFlow")
       .customerQueueFlowArn(context.refs.flowArn("memberServicesQueueExperience"))
       .next("SetMemberServicesQueue")
@@ -629,11 +540,12 @@ export const mainInboundSpec: FlowSpec = {
       .onError("Disconnect")
       .build();
 
-    const disconnect = new DisconnectParticipantActionBuilder(
-      "Disconnect",
-    ).build();
+    const disconnect = new DisconnectParticipantActionBuilder("Disconnect").build();
+
+    // ── Flow assembly ─────────────────────────────────────────────────────────
 
     return new FlowBuilder("MainInbound")
+      // Section 1: Call setup
       .startWith(setDefaultVoice)
       .add(languagePrompt)
       .add(setEnglishAttr)
@@ -646,10 +558,13 @@ export const mainInboundSpec: FlowSpec = {
       .add(closedMessageEnglish)
       .add(closedMessageSpanish)
       .add(lookupByPhone)
+      .add(setCallerIdentified)
       .add(greeting)
+      // Section 2: Intent capture
       .add(setIntentPromptLanguage)
       .add(intentPromptEnglish)
       .add(intentPromptSpanish)
+      // Section 3: Module dispatch
       .add(setIntentClaims)
       .add(invokeClaimsModule)
       .add(setIntentBenefits)
@@ -663,22 +578,14 @@ export const mainInboundSpec: FlowSpec = {
       .add(setIntentPrescription)
       .add(invokeFormularyModule)
       .add(setIntentEligibility)
-      .add(checkEligibilityLanguage)
-      .add(checkCoverageStatusEnglish)
-      .add(checkCoverageStatusSpanish)
-      .add(eligibilityActiveEnglish)
-      .add(eligibilitySuspendedEnglish)
-      .add(eligibilityPendingEnglish)
-      .add(eligibilityUnknownEnglish)
-      .add(eligibilityActiveSpanish)
-      .add(eligibilitySuspendedSpanish)
-      .add(eligibilityPendingSpanish)
-      .add(eligibilityUnknownSpanish)
-      .add(offerTransferEnglish)
-      .add(offerTransferSpanish)
+      .add(invokeEligibilityModule)
       .add(setIntentBilling)
       .add(invokeBillingModule)
+      // Section 4: Post-module routing
       .add(checkNeedsTransfer)
+      .add(checkCallerIdentified)
+      .add(setCallerName)
+      .add(setCallerNameUnknown)
       .add(routeToQueue)
       .add(showClaimsView)
       .add(showBillingView)
@@ -687,6 +594,7 @@ export const mainInboundSpec: FlowSpec = {
       .add(showPriorAuthView)
       .add(showEligibilityView)
       .add(showBenefitsView)
+      // Section 5: Queue setup
       .add(setClaimsQueueFlow)
       .add(setClaimsQueue)
       .add(setBillingQueueFlow)
